@@ -398,7 +398,7 @@ export function buildSpec(spec) {
     const list = Array.isArray(res) ? res : [{ name: part.id, mf: res }];
     const qty = part.qty || 1;
     for (const b of list) {
-      const name = list.length > 1 ? `${part.id} ${b.name}` : part.id;
+      const name = list.length > 1 && b.name !== part.id ? `${part.id} ${b.name}` : part.id;
       const data = extract(b.mf);
       del(b.mf);
       for (let k = 0; k < qty; k++) out.push({ partId: part.id, name: qty > 1 ? `${name} #${k + 1}` : name, slot: b.slot || part.slot, ...data });

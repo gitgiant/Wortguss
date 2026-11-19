@@ -516,25 +516,15 @@ async function save(kind) {
   if (!caps.downloads) { note.textContent = 'Saving files is not available in this view. Open the page on claude.ai to download.'; return; }
   const base = slugify(spec.name);
   try {
-    if (kind === 'spec') await caps.downloads.save({ filename: `${base}.json`, data: JSON.stringify(spec, null, 2) });
-    else if (kind === 'stl') {
-      // .stl downloads are refused here, so the STLs (one per part) go in a zip.
-      await caps.downloads.save({ filename: `${base}-stl.zip`, data: zipSync(stlFiles(bodies), { level: 6 }) });
-      note.textContent = `Saved ${base}-stl.zip. Unzip it and drag all the STLs into Bambu Studio together; each part comes in as its own object. The AMS slot is in each file name.`;
+    if (kind === 'spec') {
+      await caps.downloads.save({ filename: `${base}.json`, data: JSON.stringify(spec, null, 2) });
+      note.textContent = 'Spec saved.';
       return;
-    } else {
-      const file = build3mf(spec, bodies);
-      try { await caps.downloads.save({ filename: `${base}.3mf`, data: file }); }
-      catch (e) {
-        if (e?.code !== 'rejected_extension') throw e;
-        // The viewer only allows some file types; .zip is one. Wrap the 3MF (and spec) in a zip.
-        const zip = zipSync({ [`${base}.3mf`]: file, [`${base}.json`]: strToU8(JSON.stringify(spec, null, 2)) }, { level: 0 });
-        await caps.downloads.save({ filename: `${base}.zip`, data: zip });
-        note.textContent = `Saved ${base}.zip. Open it (on iPhone, tap it in Files) to get ${base}.3mf, then open that in Bambu Studio or upload it to MakerWorld.`;
-        return;
-      }
     }
-    note.textContent = kind === 'spec' ? 'Spec saved.' : '3MF saved. Open it in Bambu Studio, or upload to MakerWorld and print from Bambu Handy.';
+    // The viewer refuses .3mf/.stl downloads, so both go in one flat zip.
+    const files = { [`${base}.3mf`]: build3mf(spec, bodies), ...stlFiles(bodies) };
+    await caps.downloads.save({ filename: `${base}.zip`, data: zipSync(files, { level: 6 }) });
+    note.textContent = `Saved ${base}.zip with ${base}.3mf and ${Object.keys(files).length - 1} STL file${Object.keys(files).length > 2 ? 's' : ''} (AMS slot in each STL name). Unzip, then open the 3MF in Bambu Studio, or drag in all the STLs.`;
   } catch (e) {
     note.textContent = e?.code === 'declined' ? 'Save cancelled.' : `Could not save: ${e?.message || e}`;
   }
@@ -571,9 +561,8 @@ async function boot() {
   for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => { tab = b.dataset.tab; renderPanel(); });
   $('askForm').addEventListener('submit', (e) => { e.preventDefault(); ask($('askInput').value); });
   $('askInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); ask($('askInput').value); } });
-  $('dl3mf').addEventListener('click', () => save('3mf'));
+  $('dlPrint').addEventListener('click', () => save('print'));
   $('dlSpec').addEventListener('click', () => save('spec'));
-  $('dlStl').addEventListener('click', () => save('stl'));
   $('copySpec').addEventListener('click', copySpec);
   window.addEventListener('pagehide', () => { if (dirtyNote) commit(dirtyNote); });
 
