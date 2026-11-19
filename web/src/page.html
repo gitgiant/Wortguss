@@ -31,6 +31,11 @@ header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
 .brand span { color: var(--accent); }
 .tag { color: var(--muted); font-size: 13px; }
 .proj { margin-left: auto; display: flex; gap: 8px; align-items: center; min-width: 0; }
+.proj select { min-width: 0; max-width: 260px; }
+@media (max-width: 600px) { .proj { margin-left: 0; width: 100%; } .proj select { flex: 1; max-width: none; } }
+#topPanel .card { border-color: var(--accent); }
+.namerow { display: flex; gap: 8px; flex-wrap: wrap; }
+.namerow input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 8px 10px; }
 .main { display: grid; gap: 16px; }
 @media (min-width: 900px) { .main { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
   .left { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); } }
@@ -104,9 +109,11 @@ textarea.code { width: 100%; min-height: 320px; font: 12.5px/1.5 var(--mono); bo
     <span class="tag">Describe a part, print it on the A1</span>
     <div class="proj">
       <select id="projectSel" aria-label="Project"></select>
+      <button class="btn" id="renameBtn" type="button">Rename</button>
       <button class="btn" id="newBtn" type="button">New</button>
     </div>
   </header>
+  <div id="topPanel" hidden></div>
 
   <div class="main">
     <section class="left" aria-label="Preview">

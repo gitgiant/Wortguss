@@ -29,7 +29,6 @@ let spec = null; // working spec (may be ahead of the last version)
 let dirtyNote = null; // pending manual edit note, committed after a pause
 let bodies = [];
 let tab = 'parts';
-let showPresets = false;
 let caps = { db: null, user: null, sample: null, dictation: null, downloads: null };
 let uid = null;
 
@@ -236,22 +235,46 @@ function renderPanel() {
   panel.replaceChildren(...[].concat(fn()));
 }
 
-function presetCard() {
-  return h('div', { class: 'card' },
-    h('h3', { text: 'Start a new part from' }),
-    h('div', { class: 'presets' }, PRESETS.map((p) => h('button', {
-      class: 'btn', type: 'button', text: p.name,
-      onclick: () => {
-        const s = specFromPreset(p.key);
-        project = newProject(s, `Started from ${p.name}`);
-        store.save(project);
-        showPresets = false;
-        renderProjects();
-        setSpec(s);
-      },
-    }))),
-    h('div', {}, h('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: () => { showPresets = false; renderPanel(); } })),
-  );
+// The New / Rename panel sits right under the header so it is visible on a phone.
+let topMode = null; // null | 'new' | 'rename'
+function renderTop() {
+  const host = $('topPanel');
+  host.hidden = !topMode;
+  if (!topMode) { host.replaceChildren(); return; }
+  const close = () => { topMode = null; renderTop(); };
+  const cancel = h('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close });
+  if (topMode === 'new') {
+    host.replaceChildren(h('div', { class: 'card' },
+      h('h3', { text: 'Start a new part from' }),
+      h('div', { class: 'presets' }, PRESETS.map((p) => h('button', {
+        class: 'btn', type: 'button', text: p.name,
+        onclick: () => {
+          if (dirtyNote) commit(dirtyNote);
+          const s = specFromPreset(p.key);
+          project = newProject(s, `Started from ${p.name}`);
+          store.save(project);
+          close();
+          tab = 'parts';
+          openProject(project);
+          reply(`Started “${p.name}”. Tap Rename to give it your own name.`);
+        },
+      }))),
+      h('div', {}, cancel)));
+  } else {
+    const input = h('input', { type: 'text', id: 'renameInput', value: spec.name, maxlength: 80, 'aria-label': 'Part name', enterkeyhint: 'done' });
+    const save = () => {
+      const name = input.value.trim();
+      if (name && name !== spec.name) { setSpec({ ...spec, name }, { note: `Renamed to ${name}`, now: true }); reply(`Renamed to “${name}”.`); }
+      close();
+    };
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') close(); });
+    host.replaceChildren(h('div', { class: 'card' },
+      h('h3', { text: 'Rename this part' }),
+      h('div', { class: 'namerow' }, input, h('button', { class: 'btn primary', type: 'button', text: 'Save', onclick: save }), cancel)));
+    input.focus();
+    input.select();
+  }
+  host.scrollIntoView({ block: 'nearest' });
 }
 
 function slotPicker(current, onPick, label) {
@@ -293,7 +316,6 @@ function field(def, value, onChange, idBase) {
 
 function partsPanel() {
   const out = [];
-  if (showPresets) out.push(presetCard());
   spec.parts.forEach((part, i) => {
     const t = TYPES[part.type];
     const update = (fnc, note) => { const s = structuredClone(spec); fnc(s.parts[i]); setSpec(s, { note }); };
@@ -334,7 +356,7 @@ function colourPanel() {
       h('h3', { text: 'Fit and material' }),
       h('div', { class: 'fields' },
         h('div', { class: 'field' }, h('label', { for: 'f-name', text: 'Part name' }),
-          h('input', { type: 'text', id: 'f-name', value: spec.name, onchange: (e) => setSpec({ ...spec, name: e.target.value }, { note: 'Renamed' }) })),
+          h('input', { type: 'text', id: 'f-name', value: spec.name, onchange: (e) => setSpec({ ...spec, name: e.target.value }, { note: 'Renamed', now: true }) })),
         h('div', { class: 'field' }, h('label', { for: 'f-mat', text: 'Material' }),
           h('select', { id: 'f-mat', onchange: (e) => setSpec({ ...spec, material: e.target.value, tolerance: MATERIALS[e.target.value].tolerance }, { note: `Material ${e.target.value}` }) },
             Object.keys(MATERIALS).map((m) => h('option', { value: m, selected: m === spec.material, text: m })))),
@@ -544,7 +566,8 @@ async function boot() {
   openProject(projects[0]);
 
   $('projectSel').addEventListener('change', (e) => { if (dirtyNote) commit(dirtyNote); openProject(projects.find((p) => p.id === e.target.value)); });
-  $('newBtn').addEventListener('click', () => { showPresets = true; tab = 'parts'; renderPanel(); });
+  $('newBtn').addEventListener('click', () => { topMode = topMode === 'new' ? null : 'new'; renderTop(); });
+  $('renameBtn').addEventListener('click', () => { topMode = topMode === 'rename' ? null : 'rename'; renderTop(); });
   for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => { tab = b.dataset.tab; renderPanel(); });
   $('askForm').addEventListener('submit', (e) => { e.preventDefault(); ask($('askInput').value); });
   $('askInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); ask($('askInput').value); } });
