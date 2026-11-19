@@ -5,7 +5,7 @@ import wasmBinary from 'manifold-3d/manifold.wasm';
 import { TYPES, PRESETS, MATERIALS, BED } from './catalog.js';
 import { normalizeSpec, normalizePart, specFromPreset, slugify } from './spec.js';
 import { initGeometry, buildSpec, estimate, resolveTools } from './geometry.js';
-import { build3mf, layout } from './threemf.js';
+import { build3mf, layout, stlFiles } from './threemf.js';
 import { zipSync, strToU8 } from 'fflate';
 
 const $ = (id) => document.getElementById(id);
@@ -495,7 +495,12 @@ async function save(kind) {
   const base = slugify(spec.name);
   try {
     if (kind === 'spec') await caps.downloads.save({ filename: `${base}.json`, data: JSON.stringify(spec, null, 2) });
-    else {
+    else if (kind === 'stl') {
+      // .stl downloads are refused here, so the STLs (one per part) go in a zip.
+      await caps.downloads.save({ filename: `${base}-stl.zip`, data: zipSync(stlFiles(bodies), { level: 6 }) });
+      note.textContent = `Saved ${base}-stl.zip. Unzip it and drag all the STLs into Bambu Studio together; each part comes in as its own object. The AMS slot is in each file name.`;
+      return;
+    } else {
       const file = build3mf(spec, bodies);
       try { await caps.downloads.save({ filename: `${base}.3mf`, data: file }); }
       catch (e) {
@@ -545,6 +550,7 @@ async function boot() {
   $('askInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); ask($('askInput').value); } });
   $('dl3mf').addEventListener('click', () => save('3mf'));
   $('dlSpec').addEventListener('click', () => save('spec'));
+  $('dlStl').addEventListener('click', () => save('stl'));
   $('copySpec').addEventListener('click', copySpec);
   window.addEventListener('pagehide', () => { if (dirtyNote) commit(dirtyNote); });
 

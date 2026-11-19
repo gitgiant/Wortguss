@@ -4,7 +4,7 @@ import Module from 'manifold-3d';
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { initGeometry, buildSpec } from '../src/geometry.js';
 import { normalizeSpec } from '../src/spec.js';
-import { build3mf } from '../src/threemf.js';
+import { build3mf, stlFiles } from '../src/threemf.js';
 
 const root = new URL('../../', import.meta.url);
 const specsDir = new URL('specs/', root), outDir = new URL('prints/', root);
@@ -17,7 +17,13 @@ for (const f of readdirSync(specsDir).filter((f) => f.endsWith('.json')).sort())
   const bodies = buildSpec(spec);
   writeFileSync(new URL(`${name}.3mf`, outDir), build3mf(spec, bodies));
   keep.add(`${name}.3mf`);
+  // STL fallback: prints/<name>-stl/<part>-slot<N>.stl
+  const dir = new URL(`${name}-stl/`, outDir);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir);
+  for (const [fn, data] of Object.entries(stlFiles(bodies))) writeFileSync(new URL(fn, dir), data);
+  keep.add(`${name}-stl`);
   console.log(`prints/${name}.3mf  ${bodies.length} bodies`);
 }
 // Drop 3MFs whose spec was removed.
-for (const f of readdirSync(outDir)) if (f.endsWith('.3mf') && !keep.has(f)) rmSync(new URL(f, outDir));
+for (const f of readdirSync(outDir)) if (!keep.has(f)) rmSync(new URL(f, outDir), { recursive: true, force: true });

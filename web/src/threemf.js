@@ -44,6 +44,36 @@ export function layout(bodies, gap = 6) {
   return out;
 }
 
+// Binary STL of one body at its own origin (Bambu Studio arranges on import).
+export function buildStl(body) {
+  const P = body.mesh.positions, I = body.mesh.indices, n = I.length / 3;
+  const dv = new DataView(new ArrayBuffer(84 + n * 50));
+  const head = `Wortguss ${body.name}`.slice(0, 79);
+  for (let k = 0; k < head.length; k++) dv.setUint8(k, head.charCodeAt(k) & 0x7f);
+  dv.setUint32(80, n, true);
+  let o = 84;
+  for (let t = 0; t < n; t++) {
+    const a = I[3 * t] * 3, b = I[3 * t + 1] * 3, c = I[3 * t + 2] * 3;
+    const ux = P[b] - P[a], uy = P[b + 1] - P[a + 1], uz = P[b + 2] - P[a + 2];
+    const vx = P[c] - P[a], vy = P[c + 1] - P[a + 1], vz = P[c + 2] - P[a + 2];
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const l = Math.hypot(nx, ny, nz) || 1;
+    for (const v of [nx / l, ny / l, nz / l]) { dv.setFloat32(o, v, true); o += 4; }
+    for (const i of [a, b, c]) for (let k = 0; k < 3; k++) { dv.setFloat32(o, P[i + k], true); o += 4; }
+    o += 2;
+  }
+  return new Uint8Array(dv.buffer);
+}
+
+const fileSafe = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'part';
+
+// One STL per body, named with its AMS slot, so they import as separate objects.
+export function stlFiles(bodies) {
+  const out = {};
+  for (const b of bodies) out[`${fileSafe(b.name)}-slot${b.slot}.stl`] = buildStl(b);
+  return out;
+}
+
 // Deterministic UUIDs (same spec -> same bytes).
 const uuid = (kind, n) => `${kind.toString(16).padStart(8, '0')}-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 
@@ -124,7 +154,9 @@ ${settings}  <plate>
 ${instances}  </plate>
 </config>
 `);
-  files['Metadata/project_settings.config'] = strToU8(JSON.stringify(projectSettings(spec), null, 4));
+  // No Metadata/project_settings.config: Bambu Studio rejected the embedded A1
+  // config ("invalid configuration") and then loaded nothing. Without it, it
+  // loads geometry + per-object extruders and uses the user's own presets.
   // The editable source travels with the print file.
   files['Metadata/wortguss.spec.json'] = strToU8(JSON.stringify(spec, null, 2));
   files['[Content_Types].xml'] = strToU8(`<?xml version="1.0" encoding="UTF-8"?>

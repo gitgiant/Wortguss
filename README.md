@@ -34,7 +34,8 @@ sandbox only allows scripts from CDNs, not `.wasm` fetches.
 
 ## Hosted 3MFs
 
-`prints/` holds a ready-to-print 3MF for every spec in `specs/`. The *Build prints*
+`prints/` holds a ready-to-print 3MF for every spec in `specs/`, plus a
+`prints/<name>-stl/` folder with one STL per part (AMS slot in the file name). The *Build prints*
 GitHub Action rebuilds them whenever a spec or the generators change, so to host a
 new part: Save spec (or Copy spec) on the page, commit it as `specs/<name>.json`,
 and `prints/<name>.3mf` appears a minute later. Locally: `cd web && npm run prints`.

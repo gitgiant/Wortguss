@@ -28,10 +28,10 @@ CAD later. Units are millimetres.
   takes inline `{ "name", "d" }` / `{ "name", "w", "t" }` objects.
 - Every exported 3MF carries its spec at `Metadata/wortguss.spec.json`.
 - 3MFs are written in Bambu Studio's project layout (meshes in `3D/Objects/`,
-  `Metadata/model_settings.config`, and a full A1 `project_settings.config` from
-  `web/src/a1-profile.json`) so Bambu Studio opens them as projects with the
-  AMS slots and colours set. Regenerate that profile from a BambuStudio checkout
-  with `node web/scripts/make-a1-profile.mjs <BambuStudio>/resources/profiles/BBL`.
+  `Metadata/model_settings.config` with each part's AMS slot). The embedded A1
+  `project_settings.config` is switched off for now: Bambu Studio rejected it as an
+  invalid configuration. `web/src/a1-profile.json` and `make-a1-profile.mjs` keep
+  the flattened A1 presets for when that is fixed.
 
 - `parts[].qty` (optional, 1–20) prints several copies of a part.
 
