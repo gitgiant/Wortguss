@@ -1,14 +1,13 @@
 // Builds every preset, checks each body is a closed solid that fits the A1 bed,
 // and writes 3MF files to test/out/ for opening in Bambu Studio.
-import Module from 'manifold-3d';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { initGeometry, buildSpec, estimate } from '../src/geometry.js';
+import { buildSpec, estimate } from '../src/geometry.js';
+import { setup } from './setup.mjs';
 import { specFromPreset } from '../src/spec.js';
 import { PRESETS, BED } from '../src/catalog.js';
 import { build3mf } from '../src/threemf.js';
 
-const wasm = await Module();
-initGeometry(wasm);
+await setup();
 mkdirSync(new URL('./out/', import.meta.url), { recursive: true });
 let fail = 0;
 for (const p of PRESETS) {

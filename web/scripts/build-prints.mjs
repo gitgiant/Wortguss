@@ -1,14 +1,14 @@
 // Builds prints/<name>.3mf for every specs/<name>.json, so each spec has a
 // hosted 3MF in the repo. Run by CI on push; also `npm run prints` locally.
-import Module from 'manifold-3d';
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
-import { initGeometry, buildSpec } from '../src/geometry.js';
+import { buildSpec } from '../src/geometry.js';
+import { setup } from '../test/setup.mjs';
 import { normalizeSpec } from '../src/spec.js';
 import { build3mf, stlFiles } from '../src/threemf.js';
 
 const root = new URL('../../', import.meta.url);
 const specsDir = new URL('specs/', root), outDir = new URL('prints/', root);
-initGeometry(await Module());
+await setup();
 mkdirSync(outDir, { recursive: true });
 const keep = new Set();
 for (const f of readdirSync(specsDir).filter((f) => f.endsWith('.json')).sort()) {

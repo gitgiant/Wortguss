@@ -39,6 +39,12 @@ CAD later. Units are millimetres.
   magnet pocket), with row/grid/circle patterns. Full field list: `EXTRAS_HELP`
   in `web/src/catalog.js`. Example: four M2.5 standoffs on an enclosure floor:
   `{"op":"add","shape":"standoff","face":"floor","size":"M2.5","depth":5,"pattern":{"type":"grid","nx":2,"ny":2,"dx":58,"dy":49}}`.
+- Extras also include `text` (Inter Bold, cap height `size`): `cut` engraves, `add`
+  raises it; a raised label with its own `slot` prints in that AMS colour (the 3MF
+  colours its triangles; the STLs include a separate `-label-slotN.stl`).
+  `mirror: lr|ud|both` adds mirrored copies across the face centre lines.
+- `parts[].finish: {type: round|chamfer, r, edges: both|top|bottom}` rounds or
+  chamfers the outer top/bottom edges.
 - The `custom` part type starts from a block, cylinder or nothing; build it with extras.
 - Old enclosure `cableHole` / `cutouts` params are converted to extras on load.
 

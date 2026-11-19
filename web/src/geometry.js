@@ -3,6 +3,7 @@
 // Helpers consume (delete) their manifold inputs to keep WASM memory flat.
 
 import { SCREWS } from './catalog.js';
+import { textContours } from './text.js';
 
 let M; // manifold toplevel
 
@@ -463,6 +464,15 @@ function featureLocal(e, thick, tol) {
     }
     case 'hex': put(prism(hexagon(e.d + (e.op === 'cut' ? tol : 0)), ...span)); break;
     case 'sphere': put(M.Manifold.sphere(e.d / 2, 0)); break;
+    case 'text': {
+      const contours = textContours(e.text, e.size);
+      if (!contours.length) break;
+      let cs = new M.CrossSection(contours, 'NonZero');
+      // On the bottom face we look from below, so mirror to keep it readable.
+      if (e.face === 'bottom') { const m = cs.mirror([1, 0]); del(cs); cs = m; }
+      put(prism(cs, ...span));
+      break;
+    }
     case 'magnet': cut.push(prism(circle(e.d + 2 * tol), -e.depth, 0.3)); break;
     case 'standoff': {
       add.push(cone(e.od, e.od, -0.01, e.depth));
@@ -539,15 +549,29 @@ function xyzFrame(e) {
 
 function applyExtras(part, list, tol) {
   const faceOf = partFrames(part, list);
-  const perBody = new Map(); // role -> {add, cut}
+  const perBody = new Map(); // role -> {add, cut, labels}
   for (const e of part.extras) {
     const fr = e.face === 'xyz' ? xyzFrame(e) : faceOf(e.face);
     const rot = e.rot || 0;
+    // Raised text in another AMS colour stays a separate solid (a label on the part).
+    const asLabel = e.shape === 'text' && e.op === 'add' && e.slot > 0 && e.slot !== part.slot;
+    const spots = [];
     for (const [pu, pv] of patternOffsets(e.pattern)) {
+      const u = e.u + pu, v = e.v + pv;
+      spots.push([u, v, 1, 1]);
+      // Mirror copies are reflected across the face's centre lines (mirrored shape too).
+      if (e.mirror === 'lr' || e.mirror === 'both') spots.push([-u, v, -1, 1]);
+      if (e.mirror === 'ud' || e.mirror === 'both') spots.push([u, -v, 1, -1]);
+      if (e.mirror === 'both') spots.push([-u, -v, -1, -1]);
+    }
+    for (const [u, v, mu, mv] of spots) {
       const { add, cut } = featureLocal(e, fr.thick, tol);
-      const place = (m) => transformTo(rot ? rot_(m, rot) : m, fr, e.u + pu, e.v + pv);
-      const slot = perBody.get(fr.role) || { add: [], cut: [] };
-      slot.add.push(...add.map(place));
+      // Text stays readable in mirror copies; other shapes are reflected.
+      const flip = (m) => (e.shape !== 'text' && (mu < 0 || mv < 0) ? (() => { const r = m.scale([mu, mv, 1]); del(m); return r; })() : m);
+      const place = (m) => transformTo(rot ? rot_(flip(m), rot * mu * mv) : flip(m), fr, u, v);
+      const slot = perBody.get(fr.role) || { add: [], cut: [], labels: [] };
+      if (asLabel) slot.labels.push(...add.map((m) => ({ mf: place(m), slot: e.slot })));
+      else slot.add.push(...add.map(place));
       slot.cut.push(...cut.map(place));
       perBody.set(fr.role, slot);
     }
@@ -556,14 +580,60 @@ function applyExtras(part, list, tol) {
     // Extras go on the body with that role; parts without roles (several loose
     // bodies, like the clutch test) take them on their first body.
     const b = list.find((x) => x.role === role) || (role === 'main' ? list[0] : null);
-    if (!b) { del(...ops.add, ...ops.cut); continue; }
+    if (!b) { del(...ops.add, ...ops.cut, ...ops.labels.map((l) => l.mf)); continue; }
     let m = b.mf;
     if (ops.add.length) m = uni([m, ...ops.add]);
     if (ops.cut.length) m = sub(m, ...ops.cut);
     b.mf = m;
+    if (ops.labels.length) b.labels = (b.labels || []).concat(ops.labels);
   }
 }
 const rot_ = (m, deg) => rot(m, 0, 0, deg);
+
+// Filled outline of a part seen from above: slices at many heights, holes filled.
+function footprint(mf, z0, z1) {
+  const area = (p) => p.reduce((a, [x, y], i) => { const [x2, y2] = p[(i + 1) % p.length]; return a + x * y2 - x2 * y; }, 0) / 2;
+  const outers = [];
+  const n = 16;
+  for (let i = 0; i <= n; i++) {
+    const cs = mf.slice(z0 + 0.02 + ((z1 - z0 - 0.04) * i) / n);
+    for (const poly of cs.toPolygons()) if (area(poly) > 0) outers.push(poly);
+    del(cs);
+  }
+  return new M.CrossSection(outers, 'Positive');
+}
+
+// Round or chamfer the outer top/bottom edges: intersect with an envelope of the
+// part's footprint, stepped inwards in 0.1 mm layers (finer than a print layer).
+function applyFinish(mf, f) {
+  const { min, max } = mf.boundingBox();
+  const H = max[2] - min[2];
+  const foot = footprint(mf, min[2], max[2]);
+  const r = Math.min(f.r, H / (f.edges === 'both' ? 2 : 1) - 0.05);
+  if (r < 0.1) { del(foot); return mf; }
+  const step = 0.1, n = Math.ceil(r / step);
+  const inset = (d) => (f.type === 'round' ? r - Math.sqrt(Math.max(0, r * r - (r - d) * (r - d))) : r - d);
+  const layers = [];
+  const layer = (z0, z1, ins) => {
+    const cs = ins > 0.001 ? foot.offset(-ins, 'Round') : foot;
+    const m = M.Manifold.extrude(cs, z1 - z0).translate([0, 0, z0]);
+    if (cs !== foot) del(cs);
+    layers.push(m);
+  };
+  const bottom = f.edges !== 'top', top = f.edges !== 'bottom';
+  const zA = min[2] - 0.01 + (bottom ? r : 0), zB = max[2] + 0.01 - (top ? r : 0);
+  layer(bottom ? zA : min[2] - 0.01, top ? zB : max[2] + 0.01, 0);
+  for (let i = 0; i < n; i++) {
+    const d = Math.min(r, (i + 0.5) * step), z = Math.min(r, i * step), z2 = Math.min(r, (i + 1) * step);
+    if (bottom) layer(min[2] + r - z2, min[2] + r - z, inset(r - d));
+    if (top) layer(max[2] - r + z, max[2] - r + z2, inset(r - d));
+  }
+  del(foot);
+  const env = uni(layers);
+  const out = mf.intersect(env);
+  del(mf, env);
+  return out;
+}
 
 // ------------------------------------------------------------------- build
 
@@ -590,20 +660,34 @@ export function buildSpec(spec) {
       default: continue;
     }
     const list = Array.isArray(res) ? res : [{ name: part.id, mf: res, role: 'main' }];
+    if (part.finish) for (const b of list) b.mf = applyFinish(b.mf, part.finish);
     if (part.extras?.length) applyExtras(part, list, spec.tolerance);
     const qty = part.qty || 1;
     for (const b of list) {
       const name = list.length > 1 && b.name !== part.id ? `${part.id} ${b.name}` : part.id;
       const data = extract(b.mf);
+      const slot = b.slot || part.slot;
+      if (b.labels?.length) {
+        // Coloured labels: separate meshes for the preview and STLs, plus one merged
+        // mesh with per-triangle colours for the 3MF.
+        const ids = new Map();
+        const tagged = b.labels.map((l) => { const t = l.mf.asOriginal(); ids.set(t.originalID(), l.slot); return t; });
+        const merged = M.Manifold.union([b.mf, ...tagged]);
+        data.colorMesh = extract(merged, ids, slot).mesh;
+        data.labels = b.labels.map((l, i) => ({ name: `${name} label${b.labels.length > 1 ? ` ${i + 1}` : ''}`, slot: l.slot, ...extract(l.mf) }));
+        data.volume = merged.volume();
+        del(merged, ...tagged, ...b.labels.map((l) => l.mf));
+      }
       del(b.mf);
       if (!data.mesh.indices.length) continue; // e.g. a custom part with nothing added yet
-      for (let k = 0; k < qty; k++) out.push({ partId: part.id, name: qty > 1 ? `${name} #${k + 1}` : name, slot: b.slot || part.slot, ...data });
+      for (let k = 0; k < qty; k++) out.push({ partId: part.id, name: qty > 1 ? `${name} #${k + 1}` : name, slot, ...data });
     }
   }
   return out;
 }
 
-function extract(mf) {
+// ids: originalID -> AMS slot, to colour triangles (others get baseSlot).
+function extract(mf, ids, baseSlot) {
   const mesh = mf.getMesh();
   const np = mesh.numProp;
   const nv = mesh.vertProperties.length / np;
@@ -614,8 +698,17 @@ function extract(mf) {
     positions[i * 3 + 2] = mesh.vertProperties[i * np + 2];
   }
   const bb = mf.boundingBox();
+  const out = { positions, indices: new Uint32Array(mesh.triVerts) };
+  if (ids) {
+    // Per-triangle AMS slot from the source solid each triangle came from.
+    out.triSlot = new Uint8Array(mesh.triVerts.length / 3).fill(baseSlot);
+    for (let r = 0; r < mesh.runOriginalID.length; r++) {
+      const s = ids.get(mesh.runOriginalID[r]);
+      if (s) out.triSlot.fill(s, mesh.runIndex[r] / 3, mesh.runIndex[r + 1] / 3);
+    }
+  }
   return {
-    mesh: { positions, indices: new Uint32Array(mesh.triVerts) },
+    mesh: out,
     bbox: { min: [...bb.min], max: [...bb.max] },
     volume: mf.volume(),
     area: mf.surfaceArea(),

@@ -1,0 +1,77 @@
+{
+  "wortguss": 1,
+  "name": "Name tag",
+  "material": "PLA",
+  "tolerance": 0.2,
+  "colors": [
+    "#f2f2ef",
+    "#d64933",
+    "#2b2d42",
+    "#2a9d8f"
+  ],
+  "tools": {
+    "screwdriver-small": {
+      "d": 6,
+      "note": "Shaft-side grip, measured at widest"
+    },
+    "screwdriver-large": {
+      "d": 9.5
+    },
+    "hex-key-set": {
+      "w": 22,
+      "t": 9
+    },
+    "flush-cutters": {
+      "w": 18,
+      "t": 10
+    },
+    "caliper-jaw": {
+      "w": 16,
+      "t": 4
+    }
+  },
+  "parts": [
+    {
+      "id": "tag",
+      "type": "custom",
+      "slot": 1,
+      "params": {
+        "base": "box",
+        "w": 70,
+        "d": 25,
+        "h": 4,
+        "radius": 4
+      },
+      "extras": [
+        {
+          "op": "add",
+          "shape": "text",
+          "face": "top",
+          "u": 0,
+          "v": 0,
+          "text": "Wortguss",
+          "size": 7,
+          "depth": 0.8,
+          "slot": 2
+        },
+        {
+          "op": "cut",
+          "shape": "cylinder",
+          "face": "top",
+          "u": 30,
+          "v": 0,
+          "d": 4,
+          "d2": 0,
+          "depth": 5,
+          "mirror": "lr",
+          "through": true
+        }
+      ],
+      "finish": {
+        "type": "round",
+        "r": 1.2,
+        "edges": "top"
+      }
+    }
+  ]
+}

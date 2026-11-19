@@ -16,7 +16,7 @@ async function bundle(target) {
     target: 'es2022',
     minify: true,
     write: false,
-    loader: { '.wasm': 'binary' },
+    loader: { '.wasm': 'binary', '.woff': 'binary' },
     external: ['module'], // emscripten's Node-only branch; never runs in the browser
     define: { __TARGET__: JSON.stringify(target) },
     legalComments: 'none',

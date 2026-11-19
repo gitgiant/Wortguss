@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import Module from 'manifold-3d';
 import wasmBinary from 'manifold-3d/manifold.wasm';
-import { TYPES, PRESETS, MATERIALS, BED, FACES, EXTRA_SHAPES, SCREWS, SCREW_SHAPES, PATTERNS, EXTRAS_HELP } from './catalog.js';
+import { TYPES, PRESETS, MATERIALS, BED, FACES, EXTRA_SHAPES, SCREWS, SCREW_SHAPES, PATTERNS, EXTRAS_HELP, MIRRORS, FINISH } from './catalog.js';
+import { loadFont } from './text.js';
+import fontBytes from '@fontsource/inter/files/inter-latin-700-normal.woff';
 import { normalizeSpec, normalizePart, normalizeExtra, specFromPreset, slugify } from './spec.js';
 import { initGeometry, buildSpec, estimate, resolveTools } from './geometry.js';
 import { build3mf, layout, stlFiles } from './threemf.js';
@@ -144,17 +146,21 @@ function showBodies() {
   for (const c of [...group.children]) { c.geometry.dispose(); c.material.dispose(); group.remove(c); }
   const offs = layout(bodies);
   const box = new THREE.Box3();
-  bodies.forEach((b, i) => {
+  const addMesh = (mesh, slot, off) => {
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(b.mesh.positions, 3));
-    g.setIndex(new THREE.BufferAttribute(b.mesh.indices, 1));
+    g.setAttribute('position', new THREE.BufferAttribute(mesh.positions, 3));
+    g.setIndex(new THREE.BufferAttribute(mesh.indices, 1));
     const flat = g.toNonIndexed();
     g.dispose();
     flat.computeVertexNormals();
-    const m = new THREE.Mesh(flat, new THREE.MeshStandardMaterial({ color: spec.colors[b.slot - 1], roughness: 0.62, metalness: 0.02 }));
-    m.position.set(...offs[i]);
+    const m = new THREE.Mesh(flat, new THREE.MeshStandardMaterial({ color: spec.colors[slot - 1], roughness: 0.62, metalness: 0.02 }));
+    m.position.set(...off);
     group.add(m);
     box.expandByObject(m);
+  };
+  bodies.forEach((b, i) => {
+    addMesh(b.mesh, b.slot, offs[i]);
+    for (const l of b.labels || []) addMesh(l.mesh, l.slot, offs[i]);
   });
   // Reframe when the overall size changes noticeably, not on every tweak.
   const size = box.getSize(new THREE.Vector3());
@@ -368,6 +374,8 @@ const QUICK = [
   ['Nut trap', { op: 'cut', shape: 'nut_trap', face: 'bottom', size: 'M3', through: true }],
   ['Keyhole', { op: 'cut', shape: 'keyhole', face: 'back', size: 'M4', through: true }],
   ['Magnet', { op: 'cut', shape: 'magnet', face: 'bottom', d: 6, depth: 2 }],
+  ['Engraved text', { op: 'cut', shape: 'text', face: 'top', text: 'Label', size: 6, depth: 0.6 }],
+  ['Raised text', { op: 'add', shape: 'text', face: 'top', text: 'Label', size: 6, depth: 0.6, slot: 2 }],
   ['Block', { op: 'add', shape: 'box', face: 'top', w: 10, h: 10, depth: 5 }],
 ];
 
@@ -394,13 +402,23 @@ function extrasEditor(part, pi, onChange) {
       h('div', { class: 'fields' },
         SCREW_SHAPES.has(e.shape) ? h('div', { class: 'field' }, h('label', { for: id('size'), text: 'Screw' }),
           sel(id('size'), Object.fromEntries(Object.keys(SCREWS).map((k) => [k, k])), e.size, (v) => setAt(i, { size: v }), 'Screw size')) : null,
-        Object.entries(def.fields).map(([k, fd]) => (k === 'depth' && e.through ? null : numF(id(k), fd, e[k], (v) => setAt(i, { [k]: v })))),
+        Object.entries(def.fields).map(([k, fd]) => {
+          if (k === 'depth' && e.through) return null;
+          if (fd.type === 'text') return h('div', { class: 'field', style: 'grid-column: 1 / -1' }, h('label', { for: id(k), text: 'Text (new line = second line)' }),
+            h('textarea', { id: id(k), rows: 2, class: 'textin', onchange: (ev) => setAt(i, { [k]: ev.target.value }) }, e[k]));
+          if (k === 'slot') return e.op === 'add' ? h('div', { class: 'field' }, h('label', { text: 'Colour (AMS slot)' }),
+            h('div', { class: 'slots' }, [0, 1, 2, 3, 4].map((sl) => h('button', { type: 'button', class: 'slot', 'aria-pressed': String((e.slot || 0) === sl), 'aria-label': sl ? `AMS slot ${sl}` : 'Same as part',
+              style: `background:${sl ? spec.colors[sl - 1] : 'var(--surface)'}`, onclick: () => setAt(i, { slot: sl }) }, h('span', { text: sl ? String(sl) : 'part' }))))) : null;
+          return numF(id(k), fd, e[k], (v) => setAt(i, { [k]: v }));
+        }),
         e.face === 'xyz'
           ? ['x', 'y', 'z', 'rx', 'ry', 'rz'].map((k) => numF(id(k), { label: k.startsWith('r') ? `Rotate ${k[1].toUpperCase()} (°)` : k.toUpperCase(), min: -500, max: 500, step: k.startsWith('r') ? 15 : 0.5, unit: k.startsWith('r') ? '' : 'mm' }, e[k], (v) => setAt(i, { [k]: v })))
           : [numF(id('u'), { label: 'Right of centre', unit: 'mm', min: -500, max: 500, step: 0.5 }, e.u, (v) => setAt(i, { u: v })),
              numF(id('v'), { label: ['top', 'bottom', 'floor', 'lid_top', 'lid_under'].includes(e.face) ? 'Towards back' : 'Above centre', unit: 'mm', min: -500, max: 500, step: 0.5 }, e.v, (v) => setAt(i, { v: v })),
              numF(id('rot'), { label: 'Rotate (°)', min: -360, max: 360, step: 15 }, e.rot || 0, (v) => setAt(i, { rot: v }))],
         e.op === 'cut' ? h('div', { class: 'field check' }, h('input', { type: 'checkbox', id: id('through'), checked: !!e.through, onchange: (ev) => setAt(i, { through: ev.target.checked }) }), h('label', { for: id('through'), text: 'Cut all the way through' })) : null,
+        e.face !== 'xyz' ? h('div', { class: 'field' }, h('label', { for: id('mirror'), text: 'Mirror copy' }),
+          sel(id('mirror'), MIRRORS, e.mirror || 'none', (v) => setAt(i, { mirror: v }), 'Mirror')) : null,
         h('div', { class: 'field' }, h('label', { for: id('pattern'), text: 'Repeat' }),
           sel(id('pattern'), Object.fromEntries(Object.entries(PATTERNS).map(([k, d]) => [k, d.label])), pt, (v) => setAt(i, { pattern: v === 'none' ? undefined : { type: v } }), 'Pattern')),
         pt !== 'none' ? Object.entries(PATTERNS[pt].fields).map(([k, fd]) => numF(id(`p${k}`), fd, e.pattern[k], (v) => setAt(i, { pattern: { ...e.pattern, [k]: v } }))) : null,
@@ -430,6 +448,8 @@ function partsPanel() {
         field({ label: 'Quantity', type: 'int', min: 1, max: 20 }, part.qty || 1, (v) => update((p) => { p.qty = +v; }, `${part.id}: quantity`), `${i}-qty`),
         Object.entries(t.params).map(([k, def]) =>
         field(def, part.params[k], (v) => update((p) => { p.params[k] = v; }, `${part.id}: ${def.label.toLowerCase()}`), `${i}-${k}`))),
+      h('div', { class: 'fields' }, Object.entries(FINISH).map(([k, def]) => (k !== 'type' && !part.finish ? null
+        : field(def, (part.finish || { type: 'sharp' })[k] ?? def.default, (v) => update((p) => { p.finish = { ...(p.finish || { r: 1, edges: 'both' }), [k]: v }; }, `${part.id}: edges`), `${i}-fin-${k}`)))),
       extrasEditor(part, i, (extras) => update((p) => { p.extras = extras; }, `${part.id}: extras`)),
       spec.parts.length > 1 ? h('div', {}, h('button', { class: 'btn', type: 'button', text: `Remove ${part.id}`, onclick: () => {
         const s = structuredClone(spec); s.parts.splice(i, 1); setSpec(s, { note: `Removed ${part.id}`, now: true });
@@ -675,6 +695,7 @@ function importFromHash() {
 async function boot() {
   initViewer();
   initGeometry(await Module({ wasmBinary }));
+  loadFont(fontBytes);
 
   // Start right away from local data; capabilities light up when they answer.
   projects = await store.load();

@@ -64,7 +64,12 @@ export const stlName = (b) => `${fileSafe(b.name)}-slot${b.slot}.stl`;
 // One STL per body, named with its AMS slot, so they import as separate objects.
 export function stlFiles(bodies) {
   const out = {};
-  for (const b of bodies) out[stlName(b)] = buildStl(b);
+  for (const b of bodies) {
+    out[stlName(b)] = buildStl(b);
+    // Coloured labels as their own STLs: load them with the part as one object
+    // with several parts, then pick each part's filament.
+    for (const l of b.labels || []) out[stlName(l)] = buildStl(l);
+  }
   return out;
 }
 
@@ -73,10 +78,14 @@ export function build3mf(spec, bodies) {
   let objects = '', items = '';
   bodies.forEach((b, i) => {
     const id = i + 2; // 1 is the basematerials group
-    const { positions: P, indices: I } = b.mesh;
+    // Bodies with coloured labels use the merged mesh with per-triangle colours.
+    const { positions: P, indices: I, triSlot } = b.colorMesh || b.mesh;
     const v = [], t = [];
     for (let k = 0; k < P.length; k += 3) v.push(`<vertex x="${f(P[k])}" y="${f(P[k + 1])}" z="${f(P[k + 2])}"/>`);
-    for (let k = 0; k < I.length; k += 3) t.push(`<triangle v1="${I[k]}" v2="${I[k + 1]}" v3="${I[k + 2]}"/>`);
+    for (let k = 0; k < I.length; k += 3) {
+      const ts = triSlot ? triSlot[k / 3] : b.slot;
+      t.push(ts !== b.slot ? `<triangle v1="${I[k]}" v2="${I[k + 1]}" v3="${I[k + 2]}" pid="1" p1="${ts - 1}"/>` : `<triangle v1="${I[k]}" v2="${I[k + 1]}" v3="${I[k + 2]}"/>`);
+    }
     objects += `<object id="${id}" name="${esc(b.name)}" type="model" pid="1" pindex="${b.slot - 1}"><mesh><vertices>${v.join('')}</vertices><triangles>${t.join('')}</triangles></mesh></object>\n`;
     const [dx, dy, dz] = offsets[i];
     items += `<item objectid="${id}" transform="1 0 0 0 1 0 0 0 1 ${f(dx)} ${f(dy)} ${f(dz)}"/>`;

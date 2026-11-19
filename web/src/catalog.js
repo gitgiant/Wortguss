@@ -229,6 +229,14 @@ export const PRESETS = [
     ] }],
   },
   {
+    key: 'tag',
+    name: 'Name tag',
+    parts: [{ id: 'tag', type: 'custom', slot: 1, params: { base: 'box', w: 70, d: 25, h: 4, radius: 4 }, finish: { type: 'round', r: 1.2, edges: 'top' }, extras: [
+      { op: 'add', shape: 'text', face: 'top', text: 'Wortguss', size: 7, depth: 0.8, slot: 2 },
+      { op: 'cut', shape: 'cylinder', face: 'top', d: 4, u: 30, through: true, mirror: 'lr' },
+    ] }],
+  },
+  {
     key: 'bracket',
     name: 'Shelf bracket',
     parts: [{ id: 'bracket', type: 'l_bracket', slot: 3, params: {} }],
@@ -276,9 +284,17 @@ export const EXTRA_SHAPES = {
   countersunk: { label: 'Countersunk screw hole', op: 'cut', fields: { depth: N('Depth', 0.5, 250, 5) } },
   nut_trap: { label: 'Nut trap', op: 'cut', fields: { depth: N('Screw hole depth', 0.5, 250, 5) } },
   keyhole: { label: 'Keyhole (hang on a screw)', op: 'cut', fields: { len: N('Slot length', 2, 50, 8), depth: N('Depth', 0.5, 250, 3) } },
+  text: { label: 'Text', fields: { text: { label: 'Text', type: 'text', default: 'Label' }, size: N('Letter height', 1, 100, 6), depth: N('Depth', 0.2, 20, 0.6), slot: { label: 'AMS slot for raised text (0 = same as part)', type: 'int', min: 0, max: 4, default: 0 } } },
   magnet: { label: 'Magnet pocket', op: 'cut', fields: { d: N('Magnet Ø', 1, 50, 6), depth: N('Magnet height', 0.5, 50, 2) } },
 };
 export const SCREW_SHAPES = new Set(['standoff', 'insert_post', 'screw_hole', 'countersunk', 'nut_trap', 'keyhole']);
+
+export const MIRRORS = { none: 'No mirror', lr: 'Mirror left/right', ud: 'Mirror up/down', both: 'Mirror both ways' };
+export const FINISH = {
+  type: { label: 'Edges', type: 'choice', options: ['sharp', 'round', 'chamfer'], default: 'sharp' },
+  r: { label: 'Edge size', type: 'num', unit: 'mm', min: 0.2, max: 10, step: 0.1, default: 1 },
+  edges: { label: 'Which edges', type: 'choice', options: ['both', 'top', 'bottom'], default: 'both' },
+};
 
 export const PATTERNS = {
   none: { label: 'Single' },
@@ -295,4 +311,7 @@ export const EXTRAS_HELP = `Every part may have "extras": a list of features add
 - shapes and their fields: ${Object.entries(EXTRA_SHAPES).map(([k, s]) => `${k}${s.op ? ` (always ${s.op})` : ''} {${Object.keys(s.fields).join(', ')}}`).join('; ')}.
 - size: ${Object.keys(SCREWS).join('|')} for ${[...SCREW_SHAPES].join(', ')} (standoff takes a self-tapping screw, insert_post a heat-set insert).
 - pattern: {type: none|row|grid|circle, n, dx (row); nx, ny, dx, dy (grid); n, radius (circle)}, centred on u, v. e.g. 4 PCB standoffs on a 58x49 grid: {op:'add', shape:'standoff', face:'floor', size:'M2.5', pattern:{type:'grid', nx:2, ny:2, dx:58, dy:49}}.
+- text: {op, shape:'text', text, size (letter height mm), depth, slot}. op 'cut' engraves; op 'add' raises it. A raised label with slot 1-4 different from the part's slot prints in that AMS colour. Use \n for line breaks; Latin letters, digits and punctuation.
+- mirror: none|lr|ud|both also places a mirrored copy across the face centre line(s).
+- Each part may also have finish: {type: sharp|round|chamfer, r (mm), edges: both|top|bottom}, which rounds or chamfers the outer top and/or bottom edges.
 - USB-C port: {op:'cut', shape:'slot', face:'front', w:9.5, h:3.8, through:true, v: <height>}.`;

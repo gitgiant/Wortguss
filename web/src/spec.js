@@ -1,6 +1,6 @@
 // Spec normalisation: takes anything spec-shaped (from a person, from Claude,
 // from storage) and returns a valid spec, clamped to the catalogue.
-import { SPEC_VERSION, TYPES, MATERIALS, DEFAULT_COLORS, DEFAULT_TOOLS, PRESETS, FACES, EXTRA_SHAPES, SCREWS, SCREW_SHAPES, PATTERNS } from './catalog.js';
+import { SPEC_VERSION, TYPES, MATERIALS, DEFAULT_COLORS, DEFAULT_TOOLS, PRESETS, FACES, EXTRA_SHAPES, SCREWS, SCREW_SHAPES, PATTERNS, MIRRORS, FINISH } from './catalog.js';
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
@@ -54,7 +54,13 @@ export function normalizeExtra(e) {
     v: range(e.v, -500, 500, 0),
   };
   if (+e.rot) out.rot = range(e.rot, -360, 360, 0);
-  for (const [k, fd] of Object.entries(def.fields)) out[k] = numIn(fd, e[k]);
+  for (const [k, fd] of Object.entries(def.fields)) {
+    // Text: printable characters only, up to 6 lines of 40.
+    out[k] = fd.type === 'text'
+      ? String(e[k] ?? fd.default).replace(/\r/g, '').replace(/[^\x20-\x7E\u00A0-\u024F\n]/g, '').split('\n').slice(0, 6).map((l) => l.slice(0, 40)).join('\n') || fd.default
+      : numIn(fd, e[k]);
+  }
+  if (MIRRORS[e.mirror] && e.mirror !== 'none') out.mirror = e.mirror;
   if (SCREW_SHAPES.has(shape)) out.size = SCREWS[e.size] ? e.size : 'M3';
   if (out.op === 'cut' && e.through) out.through = true;
   if (out.face === 'xyz') for (const k of ['x', 'y', 'z', 'rx', 'ry', 'rz']) out[k] = range(e[k], -500, 500, 0);
@@ -94,6 +100,8 @@ export function normalizePart(p, i) {
   if (qty > 1) out.qty = qty;
   out.params = params;
   if (extras.length) out.extras = extras;
+  const ft = FINISH.type.options.includes(p?.finish?.type) ? p.finish.type : 'sharp';
+  if (ft !== 'sharp') out.finish = { type: ft, r: numIn(FINISH.r, p.finish.r), edges: FINISH.edges.options.includes(p.finish.edges) ? p.finish.edges : 'both' };
   return out;
 }
 

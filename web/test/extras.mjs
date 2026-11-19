@@ -1,11 +1,11 @@
 // Every extra shape on every face of every part type: must build a closed solid,
 // adds must add volume and cuts must remove it.
-import Module from 'manifold-3d';
-import { initGeometry, buildSpec } from '../src/geometry.js';
+import { buildSpec } from '../src/geometry.js';
+import { setup } from './setup.mjs';
 import { normalizeSpec } from '../src/spec.js';
 import { TYPES, FACES, EXTRA_SHAPES } from '../src/catalog.js';
 
-initGeometry(await Module());
+await setup();
 const vol = (spec) => buildSpec(spec).reduce((s, b) => s + b.volume, 0);
 let checks = 0, fails = [];
 for (const type of Object.keys(TYPES)) {
