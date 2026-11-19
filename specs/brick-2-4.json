@@ -1,0 +1,47 @@
+{
+  "wortguss": 1,
+  "name": "Brick 2×4",
+  "material": "PLA",
+  "tolerance": 0.2,
+  "colors": [
+    "#f2f2ef",
+    "#d64933",
+    "#2b2d42",
+    "#2a9d8f"
+  ],
+  "tools": {
+    "screwdriver-small": {
+      "d": 6,
+      "note": "Shaft-side grip, measured at widest"
+    },
+    "screwdriver-large": {
+      "d": 9.5
+    },
+    "hex-key-set": {
+      "w": 22,
+      "t": 9
+    },
+    "flush-cutters": {
+      "w": 18,
+      "t": 10
+    },
+    "caliper-jaw": {
+      "w": 16,
+      "t": 4
+    }
+  },
+  "parts": [
+    {
+      "id": "brick",
+      "type": "lego_brick",
+      "slot": 2,
+      "params": {
+        "nx": 4,
+        "ny": 2,
+        "plates": 3,
+        "studD": 4.8,
+        "tubeOD": 6.51
+      }
+    }
+  ]
+}

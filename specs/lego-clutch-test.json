@@ -1,0 +1,45 @@
+{
+  "wortguss": 1,
+  "name": "Lego clutch test",
+  "material": "PLA",
+  "tolerance": 0.2,
+  "colors": [
+    "#f2f2ef",
+    "#d64933",
+    "#2b2d42",
+    "#2a9d8f"
+  ],
+  "tools": {
+    "screwdriver-small": {
+      "d": 6,
+      "note": "Shaft-side grip, measured at widest"
+    },
+    "screwdriver-large": {
+      "d": 9.5
+    },
+    "hex-key-set": {
+      "w": 22,
+      "t": 9
+    },
+    "flush-cutters": {
+      "w": 18,
+      "t": 10
+    },
+    "caliper-jaw": {
+      "w": 16,
+      "t": 4
+    }
+  },
+  "parts": [
+    {
+      "id": "cal",
+      "type": "lego_calibration",
+      "slot": 1,
+      "params": {
+        "from": 4.7,
+        "step": 0.05,
+        "count": 5
+      }
+    }
+  ]
+}

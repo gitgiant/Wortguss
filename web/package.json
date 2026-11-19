@@ -1,0 +1,20 @@
+{
+  "name": "web",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node test/smoke.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "esbuild": "^0.24.0",
+    "fflate": "^0.8.2",
+    "manifold-3d": "^3.0.0",
+    "three": "^0.169.0"
+  },
+  "type": "module",
+  "private": true
+}

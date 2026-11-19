@@ -1,0 +1,51 @@
+{
+  "wortguss": 1,
+  "name": "Bench tool holder",
+  "material": "PLA",
+  "tolerance": 0.2,
+  "colors": [
+    "#f2f2ef",
+    "#d64933",
+    "#2b2d42",
+    "#2a9d8f"
+  ],
+  "tools": {
+    "screwdriver-small": {
+      "d": 6,
+      "note": "Shaft-side grip, measured at widest"
+    },
+    "screwdriver-large": {
+      "d": 9.5
+    },
+    "hex-key-set": {
+      "w": 22,
+      "t": 9
+    },
+    "flush-cutters": {
+      "w": 18,
+      "t": 10
+    },
+    "caliper-jaw": {
+      "w": 16,
+      "t": 4
+    }
+  },
+  "parts": [
+    {
+      "id": "holder",
+      "type": "tool_holder",
+      "slot": 4,
+      "params": {
+        "tools": [
+          "screwdriver-small",
+          "screwdriver-large",
+          "hex-key-set"
+        ],
+        "depth": 30,
+        "gap": 4,
+        "wall": 3,
+        "floor": 2
+      }
+    }
+  ]
+}
