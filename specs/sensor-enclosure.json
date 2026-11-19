@@ -46,7 +46,25 @@
         "lidSlot": 2,
         "lidThickness": 2,
         "lipDepth": 3,
-        "cableHole": 6
+        "cableHole": 0,
+        "cutouts": [
+          {
+            "side": "front",
+            "shape": "slot",
+            "w": 9.5,
+            "h": 3.8,
+            "x": 0,
+            "z": 6
+          },
+          {
+            "side": "back",
+            "shape": "round",
+            "w": 6,
+            "h": 6,
+            "x": 0,
+            "z": 10
+          }
+        ]
       }
     }
   ]

@@ -330,6 +330,7 @@ function field(def, value, onChange, idBase) {
       h('label', { for: id, text: def.label }),
       h('select', { id, onchange: (e) => onChange(e.target.value) }, def.options.map((o) => h('option', { value: o, selected: o === value, text: o }))));
   }
+  if (def.type === 'cutouts') return cutoutEditor(def, value, onChange, idBase);
   if (def.type === 'tools') {
     const names = Object.keys(spec.tools);
     const on = new Set(value.filter((t) => typeof t === 'string'));
@@ -346,6 +347,31 @@ function field(def, value, onChange, idBase) {
       type: 'number', id, value, min: def.min, max: def.max, step: def.step || 1, inputmode: def.type === 'int' ? 'numeric' : 'decimal',
       onchange: (e) => onChange(e.target.value),
     }));
+}
+
+function cutoutEditor(def, list, onChange, idBase) {
+  const set = (i, k, v) => onChange(list.map((c, j) => (j === i ? { ...c, [k]: k === 'side' || k === 'shape' ? v : +v } : c)));
+  const sel = (i, k, opts, v) => h('select', { id: `f-${idBase}-${i}-${k}`, 'aria-label': k, onchange: (e) => set(i, k, e.target.value) }, opts.map((o) => h('option', { value: o, selected: o === v, text: o })));
+  const num = (i, k, v, label) => h('input', { type: 'number', id: `f-${idBase}-${i}-${k}`, step: 0.1, value: v, 'aria-label': label, onchange: (e) => set(i, k, e.target.value) });
+  return h('div', { class: 'field', style: 'grid-column: 1 / -1' },
+    h('label', { text: 'Openings (ports, slots, holes)' }),
+    list.length ? h('div', { class: 'scroll' }, h('table', {},
+      h('thead', {}, h('tr', {}, ['Side', 'Shape', 'W / Ø', 'H', 'Offset', 'Height', ''].map((t) => h('th', { text: t })))),
+      h('tbody', {}, list.map((c, i) => h('tr', {},
+        h('td', {}, sel(i, 'side', ['front', 'back', 'left', 'right', 'lid'], c.side)),
+        h('td', {}, sel(i, 'shape', ['rect', 'slot', 'round'], c.shape)),
+        h('td', {}, num(i, 'w', c.w, 'width or diameter')),
+        h('td', {}, c.shape === 'round' ? '—' : num(i, 'h', c.h, 'height')),
+        h('td', {}, num(i, 'x', c.x, 'offset from centre')),
+        h('td', {}, num(i, 'z', c.z, c.side === 'lid' ? 'offset towards back' : 'height above floor')),
+        h('td', {}, h('button', { class: 'btn', type: 'button', text: 'Remove', onclick: () => onChange(list.filter((_, j) => j !== i)) })),
+      ))))) : null,
+    h('p', { class: 'note-line', text: 'Sizes in mm. Offset is from the side\'s centre (+ is right as you face it). Height is the opening\'s centre above the inside floor; for the lid it is the offset towards the back. USB-C: slot 9.5 × 3.8.' }),
+    h('div', { class: 'exports' },
+      h('button', { class: 'btn', type: 'button', text: '+ USB-C', onclick: () => onChange([...list, { side: 'front', shape: 'slot', w: 9.5, h: 3.8, x: 0, z: 5 }]) }),
+      h('button', { class: 'btn', type: 'button', text: '+ Rectangle', onclick: () => onChange([...list, { side: 'front', shape: 'rect', w: 12, h: 6, x: 0, z: 8 }]) }),
+      h('button', { class: 'btn', type: 'button', text: '+ Round hole', onclick: () => onChange([...list, { side: 'front', shape: 'round', w: 6, h: 6, x: 0, z: 8 }]) })),
+  );
 }
 
 function partsPanel() {
@@ -472,7 +498,7 @@ function reply(text, err = false) { const r = $('reply'); r.textContent = text; 
 
 function catalogText() {
   return Object.entries(TYPES).map(([k, t]) => `- ${k} (${t.label}): ${t.blurb}\n` + Object.entries(t.params).map(([pk, d]) =>
-    `    ${pk}: ${d.type}${d.unit ? ' ' + d.unit : ''}${d.min != null ? ` [${d.min}..${d.max}]` : ''} default ${JSON.stringify(d.default)} — ${d.label}`).join('\n')).join('\n');
+    `    ${pk}: ${d.type}${d.unit ? ' ' + d.unit : ''}${d.min != null ? ` [${d.min}..${d.max}]` : ''} default ${JSON.stringify(d.default)} — ${d.label}${d.help ? `: ${d.help}` : ''}`).join('\n')).join('\n');
 }
 
 let askCtl = null;

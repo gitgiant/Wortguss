@@ -138,6 +138,26 @@ function enclosure(p, tol) {
     // Through the front wall (−Y side).
     cuts.push(move(c, 0, -D / 2 - 1, zc));
   }
+  const wallCut = (c) => {
+    // Opening profile centred on the origin in XY (width along X, height along Y).
+    const r = c.shape === 'round' ? c.w / 2 : c.shape === 'slot' ? Math.min(c.w, c.h) / 2 : Math.min(0.5, c.w / 4, c.h / 4);
+    const cs = c.shape === 'round' ? M.CrossSection.circle(c.w / 2) : rrect(c.w, c.h, r);
+    return cs;
+  };
+  for (const c of p.cutouts || []) {
+    if (c.side === 'lid') continue;
+    const len = p.wall + 2;
+    const cs = wallCut(c);
+    let m = M.Manifold.extrude(cs, len);
+    del(cs);
+    // Profile Y -> Z (height), extrusion Z -> -Y (through the wall); centre the extrusion.
+    m = move(rot(m, 90, 0, 0), 0, len / 2, 0);
+    const zc = p.floor + c.z;
+    if (c.side === 'front') cuts.push(move(m, c.x, -D / 2, zc));
+    else if (c.side === 'back') cuts.push(move(m, -c.x, D / 2, zc));
+    else if (c.side === 'left') cuts.push(move(rot(m, 0, 0, 90), -W / 2, -c.x, zc));
+    else cuts.push(move(rot(m, 0, 0, 90), W / 2, c.x, zc));
+  }
   const boxM = sub(slab(W, D, p.radius, 0, H), ...cuts);
   const bodies = [{ name: 'box', mf: boxM }];
   if (p.lid) {
@@ -147,7 +167,15 @@ function enclosure(p, tol) {
       slab(lw, ld, innerR, p.lidThickness - 0.01, p.lidThickness + p.lipDepth),
       slab(lw - 2 * ring, ld - 2 * ring, Math.max(0.3, innerR - ring), p.lidThickness, p.lidThickness + p.lipDepth + 1),
     );
-    const lid = uni([slab(W, D, p.radius, 0, p.lidThickness), lip]);
+    let lid = uni([slab(W, D, p.radius, 0, p.lidThickness), lip]);
+    const lidCuts = (p.cutouts || []).filter((c) => c.side === 'lid').map((c) => {
+      const cs = wallCut(c);
+      const m = M.Manifold.extrude(cs, p.lidThickness + p.lipDepth + 2);
+      del(cs);
+      // The lid prints upside down (flipped about X), so "towards the back" is −Y here.
+      return move(m, c.x, -c.z, -1);
+    });
+    if (lidCuts.length) lid = sub(lid, ...lidCuts);
     bodies.push({ name: 'lid', mf: lid, slot: p.lidSlot });
   }
   return bodies;

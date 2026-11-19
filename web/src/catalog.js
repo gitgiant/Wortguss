@@ -42,6 +42,10 @@ export const TYPES = {
       lidThickness: { label: 'Lid thickness', type: 'num', unit: 'mm', min: 1, max: 6, step: 0.1, default: 2 },
       lipDepth: { label: 'Lid lip depth', type: 'num', unit: 'mm', min: 1, max: 10, step: 0.5, default: 3 },
       cableHole: { label: 'Cable hole Ø (0 = none)', type: 'num', unit: 'mm', min: 0, max: 30, step: 0.5, default: 0 },
+      cutouts: {
+        label: 'Openings', type: 'cutouts', default: [],
+        help: 'list of {side: front|back|left|right|lid, shape: rect|slot|round, w, h (mm; round uses w as Ø), x: offset from the side\'s centre (mm, + is right as you face that side; for lid + is right seen from above), z: centre height above the inside floor (mm; for lid, + is towards the back)}. A slot is a rounded-end rectangle, good for USB-C (about 9.5×3.8).',
+      },
     },
   },
   lego_brick: {
@@ -171,7 +175,7 @@ export const PRESETS = [
   {
     key: 'enclosure',
     name: 'Sensor enclosure',
-    parts: [{ id: 'box', type: 'enclosure', slot: 3, params: { w: 60, d: 40, h: 25, lidSlot: 2, cableHole: 6 } }],
+    parts: [{ id: 'box', type: 'enclosure', slot: 3, params: { w: 60, d: 40, h: 25, lidSlot: 2, cableHole: 0, cutouts: [{ side: 'front', shape: 'slot', w: 9.5, h: 3.8, x: 0, z: 6 }, { side: 'back', shape: 'round', w: 6, x: 0, z: 10 }] } }],
   },
   {
     key: 'lego',

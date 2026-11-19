@@ -7,6 +7,19 @@ const HEX = /^#[0-9a-f]{6}$/i;
 function clampParam(def, v) {
   if (def.type === 'bool') return typeof v === 'boolean' ? v : def.default;
   if (def.type === 'choice') return def.options.includes(v) ? v : def.default;
+  if (def.type === 'cutouts') {
+    if (!Array.isArray(v)) return [];
+    const num = (x, lo, hi, d) => { const n = Number(x); return Math.round(Math.min(hi, Math.max(lo, Number.isFinite(n) ? n : d)) * 100) / 100; };
+    return v.filter((c) => c && typeof c === 'object').slice(0, 16).map((c) => {
+      const shape = ['rect', 'slot', 'round'].includes(c.shape) ? c.shape : 'rect';
+      const w = num(c.w ?? c.d, 1, 200, 10);
+      return {
+        side: ['front', 'back', 'left', 'right', 'lid'].includes(c.side) ? c.side : 'front',
+        shape, w, h: shape === 'round' ? w : num(c.h, 1, 200, 5),
+        x: num(c.x, -200, 200, 0), z: num(c.z, -200, 250, 5),
+      };
+    });
+  }
   if (def.type === 'tools') {
     if (!Array.isArray(v)) return def.default.slice();
     return v
