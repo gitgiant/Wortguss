@@ -205,7 +205,22 @@ function renderStats() {
     stat(`${spec.material} (est.)`, `~${fmt(est.grams, 0)} g`),
     stat('Print time (est.)', est.hours < 1 ? `~${Math.max(5, Math.round(est.hours * 60 / 5) * 5)} min` : `~${fmt(est.hours, 1)} h`),
   );
+  renderHosted();
   $('vbadge').textContent = `A1 plate · ${bodies.length} bod${bodies.length === 1 ? 'y' : 'ies'}`;
+}
+
+// Hosted 3MFs: CI builds prints/<name>.3mf for every specs/<name>.json in the repo.
+const REPO = 'https://github.com/gitgiant/Wortguss';
+const isPreset = (slug) => PRESETS.some((p) => slugify(p.name) === slug);
+function renderHosted() {
+  const slug = slugify(spec.name);
+  const el = $('hosted');
+  el.replaceChildren(
+    isPreset(slug) ? 'Hosted: ' : 'Hosted once specs/' + slug + '.json is in the repo: ',
+    h('a', { href: `${REPO}/blob/HEAD/prints/${slug}.3mf`, target: '_blank', rel: 'noopener', text: `prints/${slug}.3mf` }),
+    ' · ',
+    h('a', { href: `${REPO}/tree/HEAD/prints`, target: '_blank', rel: 'noopener', text: 'all prints' }),
+  );
 }
 
 // ------------------------------------------------------------------ panels

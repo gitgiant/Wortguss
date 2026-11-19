@@ -72,5 +72,5 @@ export function build3mf(spec, bodies) {
     // The editable source travels with the print file.
     'Metadata/wortguss.spec.json': strToU8(JSON.stringify(spec, null, 2)),
   };
-  return zipSync(files, { level: 6 });
+  return zipSync(files, { level: 6, mtime: new Date('2020-01-01T00:00:00Z') }); // fixed time: same spec -> same bytes
 }

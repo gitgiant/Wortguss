@@ -4,7 +4,9 @@
   "description": "",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node test/smoke.mjs"
+    "test": "node test/smoke.mjs",
+    "prints": "node scripts/build-prints.mjs",
+    "examples": "node scripts/export-examples.mjs"
   },
   "keywords": [],
   "author": "",

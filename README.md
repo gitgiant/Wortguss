@@ -32,6 +32,13 @@ npm run build   # writes dist/wortguss.html, the page to publish as an artifact
 The libraries are bundled rather than loaded from a CDN because the artifact
 sandbox only allows scripts from CDNs, not `.wasm` fetches.
 
+## Hosted 3MFs
+
+`prints/` holds a ready-to-print 3MF for every spec in `specs/`. The *Build prints*
+GitHub Action rebuilds them whenever a spec or the generators change, so to host a
+new part: Save spec (or Copy spec) on the page, commit it as `specs/<name>.json`,
+and `prints/<name>.3mf` appears a minute later. Locally: `cd web && npm run prints`.
+
 ## Spec format
 
 See [`specs/README.md`](specs/README.md). Example specs for each preset are in `specs/`.

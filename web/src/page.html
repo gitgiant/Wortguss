@@ -92,7 +92,8 @@ td input { width: 100%; min-width: 60px; border: 1px solid var(--line); backgrou
 .ver .when { display: block; color: var(--muted); font-size: 12px; }
 .ver.cur .n { color: var(--accent); }
 textarea.code { width: 100%; min-height: 320px; font: 12.5px/1.5 var(--mono); border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 10px; resize: vertical; }
-.note-line { font-size: 12px; color: var(--muted); }
+.note-line { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.note-line a { color: var(--accent); }
 .presets { display: flex; flex-wrap: wrap; gap: 6px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
@@ -127,6 +128,7 @@ textarea.code { width: 100%; min-height: 320px; font: 12.5px/1.5 var(--mono); bo
         <button class="btn" id="dlSpec" type="button">Save spec</button>
         <button class="btn" id="copySpec" type="button">Copy spec</button>
       </div>
+      <div class="note-line" id="hosted"></div>
       <div class="note-line" id="exportNote">Open the 3MF in Bambu Studio or upload it to MakerWorld. Each body is a separate object with its AMS slot set.</div>
     </section>
 

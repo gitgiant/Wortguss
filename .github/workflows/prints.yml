@@ -1,0 +1,29 @@
+# Rebuilds prints/*.3mf whenever a spec or the generators change, and commits
+# the result so every spec has a hosted 3MF in the repo.
+name: Build prints
+on:
+  push:
+    paths: ['specs/**', 'web/src/**', 'web/scripts/**', 'web/package-lock.json']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  prints:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: web
+      - run: npm test && npm run prints
+        working-directory: web
+      - name: Commit changed prints
+        run: |
+          git add prints
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Rebuild prints"
+          git push
