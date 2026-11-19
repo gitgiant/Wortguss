@@ -67,10 +67,12 @@ export function buildStl(body) {
 
 const fileSafe = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'part';
 
+export const stlName = (b) => `${fileSafe(b.name)}-slot${b.slot}.stl`;
+
 // One STL per body, named with its AMS slot, so they import as separate objects.
 export function stlFiles(bodies) {
   const out = {};
-  for (const b of bodies) out[`${fileSafe(b.name)}-slot${b.slot}.stl`] = buildStl(b);
+  for (const b of bodies) out[stlName(b)] = buildStl(b);
   return out;
 }
 

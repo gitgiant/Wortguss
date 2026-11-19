@@ -5,7 +5,7 @@ import wasmBinary from 'manifold-3d/manifold.wasm';
 import { TYPES, PRESETS, MATERIALS, BED } from './catalog.js';
 import { normalizeSpec, normalizePart, specFromPreset, slugify } from './spec.js';
 import { initGeometry, buildSpec, estimate, resolveTools } from './geometry.js';
-import { build3mf, layout, stlFiles } from './threemf.js';
+import { build3mf, layout, stlFiles, stlName } from './threemf.js';
 import { zipSync, strToU8 } from 'fflate';
 
 const $ = (id) => document.getElementById(id);
@@ -208,18 +208,19 @@ function renderStats() {
   $('vbadge').textContent = `A1 plate · ${bodies.length} bod${bodies.length === 1 ? 'y' : 'ies'}`;
 }
 
-// Hosted 3MFs: CI builds prints/<name>.3mf for every specs/<name>.json in the repo.
+// Single-file downloads come from the repo: CI builds prints/<name>.3mf and
+// prints/<name>-stl/*.stl for every specs/<name>.json. (claude.ai refuses to
+// save .3mf/.stl files from the page itself, so these are GitHub links.)
 const REPO = 'https://github.com/gitgiant/Wortguss';
 const isPreset = (slug) => PRESETS.some((p) => slugify(p.name) === slug);
 function renderHosted() {
   const slug = slugify(spec.name);
-  const el = $('hosted');
-  el.replaceChildren(
-    isPreset(slug) ? 'Hosted: ' : 'Hosted once specs/' + slug + '.json is in the repo: ',
-    h('a', { href: `${REPO}/blob/HEAD/prints/${slug}.3mf`, target: '_blank', rel: 'noopener', text: `prints/${slug}.3mf` }),
-    ' · ',
-    h('a', { href: `${REPO}/tree/HEAD/prints`, target: '_blank', rel: 'noopener', text: 'all prints' }),
-  );
+  $('dl3mf').href = `${REPO}/raw/HEAD/prints/${slug}.3mf`;
+  $('dlStl').href = bodies.length === 1 ? `${REPO}/raw/HEAD/prints/${slug}-stl/${stlName(bodies[0])}` : `${REPO}/tree/HEAD/prints/${slug}-stl`;
+  $('dlStl').textContent = bodies.length === 1 ? 'Download STL' : `Download STLs (${bodies.length})`;
+  $('hosted').textContent = isPreset(slug)
+    ? 'Download 3MF and STL get the single files from the Wortguss repo on GitHub.'
+    : `Download 3MF and STL work once specs/${slug}.json (in the zip) is committed to the Wortguss repo.`;
 }
 
 // ------------------------------------------------------------------ panels
@@ -511,29 +512,20 @@ function initDictation(d) {
 }
 
 // ---------------------------------------------------------------- downloads
-async function save(kind) {
+async function save() {
   const note = $('exportNote');
   if (!caps.downloads) { note.textContent = 'Saving files is not available in this view. Open the page on claude.ai to download.'; return; }
   const base = slugify(spec.name);
   try {
-    if (kind === 'spec') {
-      await caps.downloads.save({ filename: `${base}.json`, data: JSON.stringify(spec, null, 2) });
-      note.textContent = 'Spec saved.';
-      return;
-    }
-    // The viewer refuses .3mf/.stl downloads, so both go in one flat zip.
-    const files = { [`${base}.3mf`]: build3mf(spec, bodies), ...stlFiles(bodies) };
+    // The viewer refuses .3mf/.stl downloads, so they go in one flat zip, with the spec.
+    const stls = stlFiles(bodies);
+    const files = { [`${base}.3mf`]: build3mf(spec, bodies), ...stls, [`${base}.json`]: strToU8(JSON.stringify(spec, null, 2)) };
     await caps.downloads.save({ filename: `${base}.zip`, data: zipSync(files, { level: 6 }) });
-    note.textContent = `Saved ${base}.zip with ${base}.3mf and ${Object.keys(files).length - 1} STL file${Object.keys(files).length > 2 ? 's' : ''} (AMS slot in each STL name). Unzip, then open the 3MF in Bambu Studio, or drag in all the STLs.`;
+    const n = Object.keys(stls).length;
+    note.textContent = `Saved ${base}.zip: ${base}.3mf, ${n} STL file${n > 1 ? 's' : ''} (AMS slot in each name) and ${base}.json, the spec.`;
   } catch (e) {
     note.textContent = e?.code === 'declined' ? 'Save cancelled.' : `Could not save: ${e?.message || e}`;
   }
-}
-
-async function copySpec() {
-  const text = JSON.stringify(spec, null, 2);
-  try { await navigator.clipboard.writeText(text); $('exportNote').textContent = 'Spec copied.'; }
-  catch { tab = 'spec'; renderPanel(); const ta = $('specText'); ta.focus(); ta.select(); $('exportNote').textContent = 'Copy the selected spec text.'; }
 }
 
 // -------------------------------------------------------------------- boot
@@ -561,9 +553,7 @@ async function boot() {
   for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => { tab = b.dataset.tab; renderPanel(); });
   $('askForm').addEventListener('submit', (e) => { e.preventDefault(); ask($('askInput').value); });
   $('askInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); ask($('askInput').value); } });
-  $('dlPrint').addEventListener('click', () => save('print'));
-  $('dlSpec').addEventListener('click', () => save('spec'));
-  $('copySpec').addEventListener('click', copySpec);
+  $('dlPrint').addEventListener('click', save);
   window.addEventListener('pagehide', () => { if (dirtyNote) commit(dirtyNote); });
 
   const use = (n) => (window.claude?.use ? window.claude.use(n).catch(() => null) : Promise.resolve(null));

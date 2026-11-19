@@ -61,6 +61,7 @@ header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
 .btn:disabled { opacity: 0.5; cursor: default; }
 .btn.mic[aria-pressed="true"] { background: var(--warn); color: var(--accent-ink); border-color: var(--warn); }
 .exports { display: flex; flex-wrap: wrap; gap: 8px; }
+a.btn { text-decoration: none; color: var(--ink); display: inline-flex; align-items: center; }
 .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); overflow-x: auto; }
 .tabs button { border: 0; background: none; padding: 8px 12px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; font-weight: 500; white-space: nowrap; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
@@ -131,12 +132,12 @@ textarea.code { width: 100%; min-height: 320px; font: 12.5px/1.5 var(--mono); bo
         <div class="reply" id="reply" aria-live="polite"></div>
       </form>
       <div class="exports">
-        <button class="btn primary" id="dlPrint" type="button">Download 3MF + STL</button>
-        <button class="btn" id="dlSpec" type="button">Save spec</button>
-        <button class="btn" id="copySpec" type="button">Copy spec</button>
+        <button class="btn primary" id="dlPrint" type="button">Download zip</button>
+        <a class="btn" id="dl3mf" target="_blank" rel="noopener">Download 3MF</a>
+        <a class="btn" id="dlStl" target="_blank" rel="noopener">Download STL</a>
       </div>
       <div class="note-line" id="hosted"></div>
-      <div class="note-line" id="exportNote">One zip with the .3mf and an .stl per part. Open the 3MF in Bambu Studio, or drag the STLs in if the 3MF gives trouble.</div>
+      <div class="note-line" id="exportNote">The zip holds the .3mf, an .stl per part and the spec.</div>
     </section>
 
     <section class="right" aria-label="Part settings">
