@@ -4,7 +4,7 @@
   "description": "",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node test/smoke.mjs",
+    "test": "node test/smoke.mjs && node test/extras.mjs",
     "prints": "node scripts/build-prints.mjs",
     "examples": "node scripts/export-examples.mjs"
   },

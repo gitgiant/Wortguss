@@ -1,25 +1,12 @@
 // Spec normalisation: takes anything spec-shaped (from a person, from Claude,
 // from storage) and returns a valid spec, clamped to the catalogue.
-import { SPEC_VERSION, TYPES, MATERIALS, DEFAULT_COLORS, DEFAULT_TOOLS, PRESETS } from './catalog.js';
+import { SPEC_VERSION, TYPES, MATERIALS, DEFAULT_COLORS, DEFAULT_TOOLS, PRESETS, FACES, EXTRA_SHAPES, SCREWS, SCREW_SHAPES, PATTERNS } from './catalog.js';
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
 function clampParam(def, v) {
   if (def.type === 'bool') return typeof v === 'boolean' ? v : def.default;
   if (def.type === 'choice') return def.options.includes(v) ? v : def.default;
-  if (def.type === 'cutouts') {
-    if (!Array.isArray(v)) return [];
-    const num = (x, lo, hi, d) => { const n = Number(x); return Math.round(Math.min(hi, Math.max(lo, Number.isFinite(n) ? n : d)) * 100) / 100; };
-    return v.filter((c) => c && typeof c === 'object').slice(0, 16).map((c) => {
-      const shape = ['rect', 'slot', 'round'].includes(c.shape) ? c.shape : 'rect';
-      const w = num(c.w ?? c.d, 1, 200, 10);
-      return {
-        side: ['front', 'back', 'left', 'right', 'lid'].includes(c.side) ? c.side : 'front',
-        shape, w, h: shape === 'round' ? w : num(c.h, 1, 200, 5),
-        x: num(c.x, -200, 200, 0), z: num(c.z, -200, 250, 5),
-      };
-    });
-  }
   if (def.type === 'tools') {
     if (!Array.isArray(v)) return def.default.slice();
     return v
@@ -47,6 +34,52 @@ function clampParam(def, v) {
   return n;
 }
 
+const numIn = (def, v) => {
+  let n = Number(v);
+  if (!Number.isFinite(n)) n = def.default;
+  n = Math.min(def.max, Math.max(def.min, n));
+  return def.type === 'int' ? Math.round(n) : Math.round(n * 100) / 100;
+};
+const range = (v, lo, hi, d) => { const n = Number(v); return Math.round(Math.min(hi, Math.max(lo, Number.isFinite(n) ? n : d)) * 100) / 100; };
+
+export function normalizeExtra(e) {
+  if (!e || typeof e !== 'object') return null;
+  const shape = EXTRA_SHAPES[e.shape] ? e.shape : 'box';
+  const def = EXTRA_SHAPES[shape];
+  const out = {
+    op: def.op || (e.op === 'add' ? 'add' : 'cut'),
+    shape,
+    face: FACES[e.face] ? e.face : 'top',
+    u: range(e.u, -500, 500, 0),
+    v: range(e.v, -500, 500, 0),
+  };
+  if (+e.rot) out.rot = range(e.rot, -360, 360, 0);
+  for (const [k, fd] of Object.entries(def.fields)) out[k] = numIn(fd, e[k]);
+  if (SCREW_SHAPES.has(shape)) out.size = SCREWS[e.size] ? e.size : 'M3';
+  if (out.op === 'cut' && e.through) out.through = true;
+  if (out.face === 'xyz') for (const k of ['x', 'y', 'z', 'rx', 'ry', 'rz']) out[k] = range(e[k], -500, 500, 0);
+  const pt = PATTERNS[e.pattern?.type] && e.pattern.type !== 'none' ? e.pattern.type : null;
+  if (pt) {
+    out.pattern = { type: pt };
+    for (const [k, fd] of Object.entries(PATTERNS[pt].fields)) out.pattern[k] = numIn(fd, e.pattern[k]);
+  }
+  return out;
+}
+
+// Older specs: enclosure cableHole / cutouts become cut extras.
+function legacyExtras(type, params) {
+  if (type !== 'enclosure' || !params) return [];
+  const floor = Number(params.floor ?? 2), H = Number(params.h ?? 25) + floor;
+  const out = [];
+  if (+params.cableHole > 0) out.push({ op: 'cut', shape: 'cylinder', face: 'front', d: +params.cableHole, through: true, v: floor + Math.min(+params.h / 2 || 12.5, +params.cableHole / 2 + 2) - H / 2 });
+  for (const c of Array.isArray(params.cutouts) ? params.cutouts : []) {
+    const shape = c.shape === 'round' ? 'cylinder' : c.shape === 'slot' ? 'slot' : 'box';
+    const lid = c.side === 'lid';
+    out.push({ op: 'cut', shape, face: lid ? 'lid_top' : c.side, w: c.w, h: c.h, d: c.w, r: 0.5, through: true, u: c.x, v: lid ? c.z : floor + (+c.z || 0) - H / 2 });
+  }
+  return out;
+}
+
 export function normalizePart(p, i) {
   const type = TYPES[p?.type] ? p.type : 'gridfinity_bin';
   const defs = TYPES[type].params;
@@ -55,7 +88,13 @@ export function normalizePart(p, i) {
   const id = String(p?.id || `part${i + 1}`).replace(/[^\w-]/g, '').slice(0, 32) || `part${i + 1}`;
   const slot = Math.min(4, Math.max(1, Math.round(+p?.slot || 1)));
   const qty = Math.min(20, Math.max(1, Math.round(+p?.qty || 1)));
-  return qty > 1 ? { id, type, slot, qty, params } : { id, type, slot, params };
+  const raw = [...legacyExtras(type, p?.params), ...(Array.isArray(p?.extras) ? p.extras : [])];
+  const extras = raw.slice(0, 40).map(normalizeExtra).filter(Boolean);
+  const out = { id, type, slot };
+  if (qty > 1) out.qty = qty;
+  out.params = params;
+  if (extras.length) out.extras = extras;
+  return out;
 }
 
 export function normalizeSpec(s) {

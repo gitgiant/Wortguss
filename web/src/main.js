@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import Module from 'manifold-3d';
 import wasmBinary from 'manifold-3d/manifold.wasm';
-import { TYPES, PRESETS, MATERIALS, BED } from './catalog.js';
-import { normalizeSpec, normalizePart, specFromPreset, slugify } from './spec.js';
+import { TYPES, PRESETS, MATERIALS, BED, FACES, EXTRA_SHAPES, SCREWS, SCREW_SHAPES, PATTERNS, EXTRAS_HELP } from './catalog.js';
+import { normalizeSpec, normalizePart, normalizeExtra, specFromPreset, slugify } from './spec.js';
 import { initGeometry, buildSpec, estimate, resolveTools } from './geometry.js';
 import { build3mf, layout, stlFiles } from './threemf.js';
 import { zipSync, strToU8, strFromU8, deflateSync, inflateSync } from 'fflate';
@@ -330,7 +330,6 @@ function field(def, value, onChange, idBase) {
       h('label', { for: id, text: def.label }),
       h('select', { id, onchange: (e) => onChange(e.target.value) }, def.options.map((o) => h('option', { value: o, selected: o === value, text: o }))));
   }
-  if (def.type === 'cutouts') return cutoutEditor(def, value, onChange, idBase);
   if (def.type === 'tools') {
     const names = Object.keys(spec.tools);
     const on = new Set(value.filter((t) => typeof t === 'string'));
@@ -349,29 +348,70 @@ function field(def, value, onChange, idBase) {
     }));
 }
 
-function cutoutEditor(def, list, onChange, idBase) {
-  const set = (i, k, v) => onChange(list.map((c, j) => (j === i ? { ...c, [k]: k === 'side' || k === 'shape' ? v : +v } : c)));
-  const sel = (i, k, opts, v) => h('select', { id: `f-${idBase}-${i}-${k}`, 'aria-label': k, onchange: (e) => set(i, k, e.target.value) }, opts.map((o) => h('option', { value: o, selected: o === v, text: o })));
-  const num = (i, k, v, label) => h('input', { type: 'number', id: `f-${idBase}-${i}-${k}`, step: 0.1, value: v, 'aria-label': label, onchange: (e) => set(i, k, e.target.value) });
+// Faces each part type really has (others fall back to the nearest outside face).
+function facesFor(part) {
+  const outer = ['top', 'bottom', 'front', 'back', 'left', 'right'];
+  const inner = ['floor', 'inner_front', 'inner_back', 'inner_left', 'inner_right'];
+  if (part.type === 'enclosure') return [...outer, ...inner, ...(part.params.lid ? ['lid_top', 'lid_under'] : []), 'xyz'];
+  if (part.type === 'gridfinity_bin') return [...outer, ...inner, 'xyz'];
+  return [...outer, 'xyz'];
+}
+
+const QUICK = [
+  ['USB-C', { op: 'cut', shape: 'slot', face: 'front', w: 9.5, h: 3.8, through: true }],
+  ['Round hole', { op: 'cut', shape: 'cylinder', face: 'front', d: 6, through: true }],
+  ['Rectangle', { op: 'cut', shape: 'box', face: 'front', w: 12, h: 6, r: 0.5, through: true }],
+  ['4 standoffs', { op: 'add', shape: 'standoff', face: 'floor', size: 'M2.5', depth: 5, pattern: { type: 'grid', nx: 2, ny: 2, dx: 30, dy: 20 } }],
+  ['Insert post', { op: 'add', shape: 'insert_post', face: 'floor', size: 'M3', depth: 8 }],
+  ['Screw hole', { op: 'cut', shape: 'screw_hole', face: 'bottom', size: 'M3', cb: 3, through: true }],
+  ['Countersunk', { op: 'cut', shape: 'countersunk', face: 'top', size: 'M3', through: true }],
+  ['Nut trap', { op: 'cut', shape: 'nut_trap', face: 'bottom', size: 'M3', through: true }],
+  ['Keyhole', { op: 'cut', shape: 'keyhole', face: 'back', size: 'M4', through: true }],
+  ['Magnet', { op: 'cut', shape: 'magnet', face: 'bottom', d: 6, depth: 2 }],
+  ['Block', { op: 'add', shape: 'box', face: 'top', w: 10, h: 10, depth: 5 }],
+];
+
+function extrasEditor(part, pi, onChange) {
+  const list = part.extras || [];
+  const faces = facesFor(part);
+  const setAt = (i, patch) => onChange(list.map((e, j) => (j === i ? normalizeExtra({ ...e, ...patch }) : e)));
+  const sel = (id, opts, value, on, label) => h('select', { id, 'aria-label': label, onchange: (ev) => on(ev.target.value) },
+    Object.entries(opts).map(([k, l]) => h('option', { value: k, selected: k === value, text: l })));
+  const numF = (id, def, value, on) => h('div', { class: 'field' },
+    h('label', { for: id, text: def.unit ? `${def.label} (${def.unit})` : def.label }),
+    h('input', { type: 'number', id, value, min: def.min, max: def.max, step: def.step || 1, inputmode: 'decimal', onchange: (ev) => on(+ev.target.value) }));
+  const rows = list.map((e, i) => {
+    const id = (k) => `x-${pi}-${i}-${k}`;
+    const def = EXTRA_SHAPES[e.shape];
+    const pt = e.pattern?.type || 'none';
+    return h('div', { class: 'extra' },
+      h('div', { class: 'extra-head' },
+        def.op ? h('span', { class: 'chip on', text: def.op }) : sel(id('op'), { add: 'Add', cut: 'Cut' }, e.op, (v) => setAt(i, { op: v }), 'Add or cut'),
+        sel(id('shape'), Object.fromEntries(Object.entries(EXTRA_SHAPES).map(([k, d]) => [k, d.label])), e.shape, (v) => setAt(i, { shape: v }), 'Shape'),
+        h('span', { class: 'note-line', text: 'on' }),
+        sel(id('face'), Object.fromEntries(faces.map((f) => [f, FACES[f]])), e.face, (v) => setAt(i, { face: v }), 'Face'),
+        h('button', { class: 'btn', type: 'button', text: 'Remove', onclick: () => onChange(list.filter((_, j) => j !== i)) })),
+      h('div', { class: 'fields' },
+        SCREW_SHAPES.has(e.shape) ? h('div', { class: 'field' }, h('label', { for: id('size'), text: 'Screw' }),
+          sel(id('size'), Object.fromEntries(Object.keys(SCREWS).map((k) => [k, k])), e.size, (v) => setAt(i, { size: v }), 'Screw size')) : null,
+        Object.entries(def.fields).map(([k, fd]) => (k === 'depth' && e.through ? null : numF(id(k), fd, e[k], (v) => setAt(i, { [k]: v })))),
+        e.face === 'xyz'
+          ? ['x', 'y', 'z', 'rx', 'ry', 'rz'].map((k) => numF(id(k), { label: k.startsWith('r') ? `Rotate ${k[1].toUpperCase()} (°)` : k.toUpperCase(), min: -500, max: 500, step: k.startsWith('r') ? 15 : 0.5, unit: k.startsWith('r') ? '' : 'mm' }, e[k], (v) => setAt(i, { [k]: v })))
+          : [numF(id('u'), { label: 'Right of centre', unit: 'mm', min: -500, max: 500, step: 0.5 }, e.u, (v) => setAt(i, { u: v })),
+             numF(id('v'), { label: ['top', 'bottom', 'floor', 'lid_top', 'lid_under'].includes(e.face) ? 'Towards back' : 'Above centre', unit: 'mm', min: -500, max: 500, step: 0.5 }, e.v, (v) => setAt(i, { v: v })),
+             numF(id('rot'), { label: 'Rotate (°)', min: -360, max: 360, step: 15 }, e.rot || 0, (v) => setAt(i, { rot: v }))],
+        e.op === 'cut' ? h('div', { class: 'field check' }, h('input', { type: 'checkbox', id: id('through'), checked: !!e.through, onchange: (ev) => setAt(i, { through: ev.target.checked }) }), h('label', { for: id('through'), text: 'Cut all the way through' })) : null,
+        h('div', { class: 'field' }, h('label', { for: id('pattern'), text: 'Repeat' }),
+          sel(id('pattern'), Object.fromEntries(Object.entries(PATTERNS).map(([k, d]) => [k, d.label])), pt, (v) => setAt(i, { pattern: v === 'none' ? undefined : { type: v } }), 'Pattern')),
+        pt !== 'none' ? Object.entries(PATTERNS[pt].fields).map(([k, fd]) => numF(id(`p${k}`), fd, e.pattern[k], (v) => setAt(i, { pattern: { ...e.pattern, [k]: v } }))) : null,
+      ));
+  });
   return h('div', { class: 'field', style: 'grid-column: 1 / -1' },
-    h('label', { text: 'Openings (ports, slots, holes)' }),
-    list.length ? h('div', { class: 'scroll' }, h('table', {},
-      h('thead', {}, h('tr', {}, ['Side', 'Shape', 'W / Ø', 'H', 'Offset', 'Height', ''].map((t) => h('th', { text: t })))),
-      h('tbody', {}, list.map((c, i) => h('tr', {},
-        h('td', {}, sel(i, 'side', ['front', 'back', 'left', 'right', 'lid'], c.side)),
-        h('td', {}, sel(i, 'shape', ['rect', 'slot', 'round'], c.shape)),
-        h('td', {}, num(i, 'w', c.w, 'width or diameter')),
-        h('td', {}, c.shape === 'round' ? '—' : num(i, 'h', c.h, 'height')),
-        h('td', {}, num(i, 'x', c.x, 'offset from centre')),
-        h('td', {}, num(i, 'z', c.z, c.side === 'lid' ? 'offset towards back' : 'height above floor')),
-        h('td', {}, h('button', { class: 'btn', type: 'button', text: 'Remove', onclick: () => onChange(list.filter((_, j) => j !== i)) })),
-      ))))) : null,
-    h('p', { class: 'note-line', text: 'Sizes in mm. Offset is from the side\'s centre (+ is right as you face it). Height is the opening\'s centre above the inside floor; for the lid it is the offset towards the back. USB-C: slot 9.5 × 3.8.' }),
-    h('div', { class: 'exports' },
-      h('button', { class: 'btn', type: 'button', text: '+ USB-C', onclick: () => onChange([...list, { side: 'front', shape: 'slot', w: 9.5, h: 3.8, x: 0, z: 5 }]) }),
-      h('button', { class: 'btn', type: 'button', text: '+ Rectangle', onclick: () => onChange([...list, { side: 'front', shape: 'rect', w: 12, h: 6, x: 0, z: 8 }]) }),
-      h('button', { class: 'btn', type: 'button', text: '+ Round hole', onclick: () => onChange([...list, { side: 'front', shape: 'round', w: 6, h: 6, x: 0, z: 8 }]) })),
-  );
+    h('label', { text: 'Extras: features added or cut on a face' }),
+    ...rows,
+    h('p', { class: 'note-line', text: 'Positions are from the face centre in mm, as you look at that face from outside (top, bottom, floor and lid: seen from above). Adds grow out of the face; cuts sink in.' }),
+    h('div', { class: 'chips' }, QUICK.map(([label, e]) => h('button', { class: 'chip', type: 'button', text: `+ ${label}`,
+      onclick: () => onChange([...list, normalizeExtra(faces.includes(e.face) ? e : { ...e, face: e.face === 'floor' ? 'top' : e.face })]) }))));
 }
 
 function partsPanel() {
@@ -390,6 +430,7 @@ function partsPanel() {
         field({ label: 'Quantity', type: 'int', min: 1, max: 20 }, part.qty || 1, (v) => update((p) => { p.qty = +v; }, `${part.id}: quantity`), `${i}-qty`),
         Object.entries(t.params).map(([k, def]) =>
         field(def, part.params[k], (v) => update((p) => { p.params[k] = v; }, `${part.id}: ${def.label.toLowerCase()}`), `${i}-${k}`))),
+      extrasEditor(part, i, (extras) => update((p) => { p.extras = extras; }, `${part.id}: extras`)),
       spec.parts.length > 1 ? h('div', {}, h('button', { class: 'btn', type: 'button', text: `Remove ${part.id}`, onclick: () => {
         const s = structuredClone(spec); s.parts.splice(i, 1); setSpec(s, { note: `Removed ${part.id}`, now: true });
       } })) : null,
@@ -517,6 +558,8 @@ The spec JSON has: name, material (${Object.keys(MATERIALS).join('|')}), toleran
 Part types and their params:
 ${catalogText()}
 
+${EXTRAS_HELP}
+
 Current spec:
 ${JSON.stringify(spec)}
 
@@ -530,7 +573,7 @@ Answer with one JSON object and nothing else, in one of these forms:
 {"action":"update","summary":"<one short sentence saying what changed>","spec":<the complete new spec>}
 {"action":"revert","version":<number>,"summary":"<one short sentence>"}
 {"action":"answer","summary":"<a short answer when the request is a question and nothing should change>"}
-Rules: keep everything the request does not mention unchanged; only use the part types and params listed; stay inside the ranges; map colour words to hex and set the AMS slot colour and the part's slot; if a request needs something these types cannot make, say so in summary with action "answer".`;
+Rules: keep everything the request does not mention unchanged; only use the part types and params listed; stay inside the ranges; map colour words to hex and set the AMS slot colour and the part's slot; when a request needs something a part's params cannot do, use extras (or a "custom" part) and say in summary which extras you added; only use action "answer" when even extras cannot do it.`;
   try {
     const res = await caps.sample.json(prompt, { signal: askCtl.signal, modelTier: 'default' });
     if (res?.action === 'revert') {

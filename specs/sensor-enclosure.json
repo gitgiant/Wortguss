@@ -45,27 +45,49 @@
         "lid": true,
         "lidSlot": 2,
         "lidThickness": 2,
-        "lipDepth": 3,
-        "cableHole": 0,
-        "cutouts": [
-          {
-            "side": "front",
-            "shape": "slot",
-            "w": 9.5,
-            "h": 3.8,
-            "x": 0,
-            "z": 6
-          },
-          {
-            "side": "back",
-            "shape": "round",
-            "w": 6,
-            "h": 6,
-            "x": 0,
-            "z": 10
+        "lipDepth": 3
+      },
+      "extras": [
+        {
+          "op": "cut",
+          "shape": "slot",
+          "face": "front",
+          "u": 0,
+          "v": -5.5,
+          "w": 9.5,
+          "h": 3.8,
+          "depth": 5,
+          "through": true
+        },
+        {
+          "op": "cut",
+          "shape": "cylinder",
+          "face": "back",
+          "u": 0,
+          "v": -3.5,
+          "d": 6,
+          "d2": 0,
+          "depth": 5,
+          "through": true
+        },
+        {
+          "op": "add",
+          "shape": "standoff",
+          "face": "floor",
+          "u": 0,
+          "v": 0,
+          "od": 5.5,
+          "depth": 5,
+          "size": "M2.5",
+          "pattern": {
+            "type": "grid",
+            "nx": 2,
+            "ny": 2,
+            "dx": 48,
+            "dy": 28
           }
-        ]
-      }
+        }
+      ]
     }
   ]
 }

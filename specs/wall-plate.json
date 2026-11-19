@@ -1,0 +1,83 @@
+{
+  "wortguss": 1,
+  "name": "Wall plate",
+  "material": "PLA",
+  "tolerance": 0.2,
+  "colors": [
+    "#f2f2ef",
+    "#d64933",
+    "#2b2d42",
+    "#2a9d8f"
+  ],
+  "tools": {
+    "screwdriver-small": {
+      "d": 6,
+      "note": "Shaft-side grip, measured at widest"
+    },
+    "screwdriver-large": {
+      "d": 9.5
+    },
+    "hex-key-set": {
+      "w": 22,
+      "t": 9
+    },
+    "flush-cutters": {
+      "w": 18,
+      "t": 10
+    },
+    "caliper-jaw": {
+      "w": 16,
+      "t": 4
+    }
+  },
+  "parts": [
+    {
+      "id": "plate",
+      "type": "custom",
+      "slot": 1,
+      "params": {
+        "base": "box",
+        "w": 80,
+        "d": 50,
+        "h": 4,
+        "radius": 4
+      },
+      "extras": [
+        {
+          "op": "cut",
+          "shape": "countersunk",
+          "face": "top",
+          "u": 0,
+          "v": 0,
+          "depth": 5,
+          "size": "M4",
+          "through": true,
+          "pattern": {
+            "type": "row",
+            "n": 2,
+            "dx": 60
+          }
+        },
+        {
+          "op": "add",
+          "shape": "cylinder",
+          "face": "top",
+          "u": 0,
+          "v": 5,
+          "d": 12,
+          "d2": 0,
+          "depth": 20
+        },
+        {
+          "op": "cut",
+          "shape": "hex",
+          "face": "top",
+          "u": 0,
+          "v": 5,
+          "d": 8,
+          "depth": 15
+        }
+      ]
+    }
+  ]
+}

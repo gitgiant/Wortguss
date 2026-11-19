@@ -2,6 +2,8 @@
 // flat side down at z = 0 so it is already oriented for printing.
 // Helpers consume (delete) their manifold inputs to keep WASM memory flat.
 
+import { SCREWS } from './catalog.js';
+
 let M; // manifold toplevel
 
 export function initGeometry(wasm) {
@@ -128,38 +130,18 @@ function gridfinityBin(p) {
   return body;
 }
 
+function custom(p) {
+  if (p.base === 'none') { const e = M.Manifold.cube([1, 1, 1]); const empty = e.subtract(e); del(e); return empty; }
+  if (p.base === 'cylinder') return M.Manifold.cylinder(p.h, p.w / 2, p.w / 2, 0, false);
+  return slab(p.w, p.d, p.radius, 0, p.h);
+}
+
 function enclosure(p, tol) {
   const W = p.w + 2 * p.wall, D = p.d + 2 * p.wall, H = p.h + p.floor;
   const innerR = Math.max(0.5, p.radius - p.wall);
   const cuts = [slab(p.w, p.d, innerR, p.floor, H + 1)];
-  if (p.cableHole > 0) {
-    const zc = p.floor + Math.min(p.h / 2, p.cableHole / 2 + 2);
-    const c = rot(M.Manifold.cylinder(p.wall + 2, p.cableHole / 2, p.cableHole / 2, 0, false), -90, 0, 0);
-    // Through the front wall (−Y side).
-    cuts.push(move(c, 0, -D / 2 - 1, zc));
-  }
-  const wallCut = (c) => {
-    // Opening profile centred on the origin in XY (width along X, height along Y).
-    const r = c.shape === 'round' ? c.w / 2 : c.shape === 'slot' ? Math.min(c.w, c.h) / 2 : Math.min(0.5, c.w / 4, c.h / 4);
-    const cs = c.shape === 'round' ? M.CrossSection.circle(c.w / 2) : rrect(c.w, c.h, r);
-    return cs;
-  };
-  for (const c of p.cutouts || []) {
-    if (c.side === 'lid') continue;
-    const len = p.wall + 2;
-    const cs = wallCut(c);
-    let m = M.Manifold.extrude(cs, len);
-    del(cs);
-    // Profile Y -> Z (height), extrusion Z -> -Y (through the wall); centre the extrusion.
-    m = move(rot(m, 90, 0, 0), 0, len / 2, 0);
-    const zc = p.floor + c.z;
-    if (c.side === 'front') cuts.push(move(m, c.x, -D / 2, zc));
-    else if (c.side === 'back') cuts.push(move(m, -c.x, D / 2, zc));
-    else if (c.side === 'left') cuts.push(move(rot(m, 0, 0, 90), -W / 2, -c.x, zc));
-    else cuts.push(move(rot(m, 0, 0, 90), W / 2, c.x, zc));
-  }
   const boxM = sub(slab(W, D, p.radius, 0, H), ...cuts);
-  const bodies = [{ name: 'box', mf: boxM }];
+  const bodies = [{ name: 'box', mf: boxM, role: 'main' }];
   if (p.lid) {
     // Printed upside down: plate on the bed, lip pointing up.
     const lw = p.w - 2 * tol, ld = p.d - 2 * tol, ring = 1.6;
@@ -167,16 +149,8 @@ function enclosure(p, tol) {
       slab(lw, ld, innerR, p.lidThickness - 0.01, p.lidThickness + p.lipDepth),
       slab(lw - 2 * ring, ld - 2 * ring, Math.max(0.3, innerR - ring), p.lidThickness, p.lidThickness + p.lipDepth + 1),
     );
-    let lid = uni([slab(W, D, p.radius, 0, p.lidThickness), lip]);
-    const lidCuts = (p.cutouts || []).filter((c) => c.side === 'lid').map((c) => {
-      const cs = wallCut(c);
-      const m = M.Manifold.extrude(cs, p.lidThickness + p.lipDepth + 2);
-      del(cs);
-      // The lid prints upside down (flipped about X), so "towards the back" is −Y here.
-      return move(m, c.x, -c.z, -1);
-    });
-    if (lidCuts.length) lid = sub(lid, ...lidCuts);
-    bodies.push({ name: 'lid', mf: lid, slot: p.lidSlot });
+    const lid = uni([slab(W, D, p.radius, 0, p.lidThickness), lip]);
+    bodies.push({ name: 'lid', mf: lid, slot: p.lidSlot, role: 'lid' });
   }
   return bodies;
 }
@@ -400,6 +374,197 @@ function toolHolder(p, tol, library) {
   return sub(slab(W, D, 2, 0, H), ...cuts);
 }
 
+// ------------------------------------------------------------------ extras
+// A face frame: origin (face centre), unit vectors u (right), v (up / towards back),
+// n (out of the material), the body it belongs to, and the material thickness there.
+const V = (x, y, z) => [x, y, z];
+const frame = (o, u, v, n, role, thick) => ({ o, u, v, n, role, thick });
+
+function bboxFrames(mf, role) {
+  const { min, max } = mf.boundingBox();
+  const c = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];
+  const sx = max[0] - min[0], sy = max[1] - min[1], sz = max[2] - min[2];
+  return {
+    top: frame(V(c[0], c[1], max[2]), V(1, 0, 0), V(0, 1, 0), V(0, 0, 1), role, sz),
+    bottom: frame(V(c[0], c[1], min[2]), V(1, 0, 0), V(0, 1, 0), V(0, 0, -1), role, sz),
+    front: frame(V(c[0], min[1], c[2]), V(1, 0, 0), V(0, 0, 1), V(0, -1, 0), role, sy),
+    back: frame(V(c[0], max[1], c[2]), V(-1, 0, 0), V(0, 0, 1), V(0, 1, 0), role, sy),
+    left: frame(V(min[0], c[1], c[2]), V(0, -1, 0), V(0, 0, 1), V(-1, 0, 0), role, sx),
+    right: frame(V(max[0], c[1], c[2]), V(0, 1, 0), V(0, 0, 1), V(1, 0, 0), role, sx),
+  };
+}
+
+// Inside faces of a hollow part: cavity w × d from floorZ to topZ, wall thickness.
+function cavityFrames(w, d, floorZ, topZ, wall, floorThick) {
+  const zc = (floorZ + topZ) / 2;
+  return {
+    floor: frame(V(0, 0, floorZ), V(1, 0, 0), V(0, 1, 0), V(0, 0, 1), 'main', floorThick),
+    inner_front: frame(V(0, -d / 2, zc), V(1, 0, 0), V(0, 0, 1), V(0, 1, 0), 'main', wall),
+    inner_back: frame(V(0, d / 2, zc), V(-1, 0, 0), V(0, 0, 1), V(0, -1, 0), 'main', wall),
+    inner_left: frame(V(-w / 2, 0, zc), V(0, -1, 0), V(0, 0, 1), V(1, 0, 0), 'main', wall),
+    inner_right: frame(V(w / 2, 0, zc), V(0, 1, 0), V(0, 0, 1), V(-1, 0, 0), 'main', wall),
+  };
+}
+
+function partFrames(part, list) {
+  const main = list.find((b) => b.role === 'main') || list[0];
+  const p = part.params;
+  // A custom part's faces are its block's faces (also when it starts from nothing).
+  const f = part.type === 'custom' ? bboxFrames(M.Manifold.cube([p.w, p.base === 'cylinder' ? p.w : p.d, p.h], false).translate([-p.w / 2, -(p.base === 'cylinder' ? p.w : p.d) / 2, 0]), 'main') : bboxFrames(main.mf, main.role || 'main');
+  if (part.type === 'enclosure') {
+    // Walls and floor are thin: "through" cuts only that wall.
+    for (const k of ['front', 'back', 'left', 'right']) f[k].thick = p.wall;
+    f.bottom.thick = p.floor;
+    Object.assign(f, cavityFrames(p.w, p.d, p.floor, p.h + p.floor, p.wall, p.floor));
+    if (list.some((b) => b.role === 'lid')) {
+      // The lid prints upside down (flipped about X): seen from above on the closed box,
+      // u = +X and "towards the back" = −Y in print coordinates.
+      f.lid_top = frame(V(0, 0, 0), V(1, 0, 0), V(0, -1, 0), V(0, 0, -1), 'lid', p.lidThickness + p.lipDepth);
+      f.lid_under = frame(V(0, 0, p.lidThickness), V(1, 0, 0), V(0, -1, 0), V(0, 0, 1), 'lid', p.lidThickness);
+    }
+  } else if (part.type === 'gridfinity_bin') {
+    const W = 42 * p.gx - 0.5, D = 42 * p.gy - 0.5;
+    for (const k of ['front', 'back', 'left', 'right']) f[k].thick = p.wall;
+    Object.assign(f, cavityFrames(W - 2 * p.wall, D - 2 * p.wall, 4.75 + p.floor, 7 * p.units, p.wall, 4.75 + p.floor));
+  }
+  // Faces a part doesn't have fall back to the nearest outside face.
+  const alias = { floor: 'top', inner_front: 'front', inner_back: 'back', inner_left: 'left', inner_right: 'right', lid_top: 'top', lid_under: 'bottom' };
+  return (name) => f[name] || f[alias[name]] || f.top;
+}
+
+// Profiles in the face plane (x = u, y = v), centred on the origin.
+const circle = (d, segs) => M.CrossSection.circle(d / 2, segs || 0);
+const hexagon = (af) => M.CrossSection.circle(af / 2 / Math.cos(Math.PI / 6), 6);
+function prism(cs, z0, z1) {
+  const m = M.Manifold.extrude(cs, z1 - z0);
+  del(cs);
+  return move(m, 0, 0, z0);
+}
+function cone(d0, d1, z0, z1) {
+  return move(M.Manifold.cylinder(z1 - z0, d0 / 2, d1 / 2, 0, false), 0, 0, z0);
+}
+
+// One feature in its face's local frame (z = 0 on the face, +z out of the material).
+// Returns { add: [manifolds], cut: [manifolds] }.
+function featureLocal(e, thick, tol) {
+  const S = SCREWS[e.size] || SCREWS.M3;
+  const sink = e.through ? thick + 0.5 : e.depth; // how far cuts go into the material
+  const cutZ = [-sink, 0.3]; // overshoot slightly past the surface
+  const add = [], cut = [];
+  const put = (m) => (e.op === 'add' ? add : cut).push(m);
+  const span = e.op === 'add' ? [-0.01, e.depth] : cutZ;
+  switch (e.shape) {
+    case 'box': put(prism(rrect(e.w, e.h, e.r), ...span)); break;
+    case 'slot': put(prism(rrect(e.w, e.h, Math.min(e.w, e.h) / 2 - 0.001), ...span)); break;
+    case 'cylinder': {
+      const d1 = e.d2 > 0 ? e.d2 : e.d;
+      put(e.op === 'add' ? cone(e.d, d1, ...span) : cone(d1, e.d, ...span));
+      break;
+    }
+    case 'hex': put(prism(hexagon(e.d + (e.op === 'cut' ? tol : 0)), ...span)); break;
+    case 'sphere': put(M.Manifold.sphere(e.d / 2, 0)); break;
+    case 'magnet': cut.push(prism(circle(e.d + 2 * tol), -e.depth, 0.3)); break;
+    case 'standoff': {
+      add.push(cone(e.od, e.od, -0.01, e.depth));
+      cut.push(cone(S.tap, S.tap, Math.max(0.6, e.depth - 8), e.depth + 0.3));
+      break;
+    }
+    case 'insert_post': {
+      const od = e.od > 0 ? e.od : S.insert + 3.2;
+      add.push(cone(od, od, -0.01, e.depth));
+      cut.push(cone(S.insert, S.insert, Math.max(0.6, e.depth - S.insertDepth - 0.5), e.depth + 0.3));
+      break;
+    }
+    case 'screw_hole': {
+      cut.push(cone(S.clear, S.clear, -(e.through ? thick + 0.5 : e.depth), 0.3));
+      if (e.cb > 0) cut.push(cone(S.head + 0.8, S.head + 0.8, -e.cb, 0.3));
+      break;
+    }
+    case 'countersunk': {
+      cut.push(cone(S.clear, S.clear, -(e.through ? thick + 0.5 : e.depth), 0.3));
+      const h = (S.cs - S.clear) / 2; // 90° head
+      cut.push(cone(S.clear, S.cs + 0.4, -h, 0), cone(S.cs + 0.4, S.cs + 0.4, 0, 0.3));
+      break;
+    }
+    case 'nut_trap': {
+      cut.push(cone(S.clear, S.clear, -(e.through ? thick + 0.5 : e.depth), 0.3));
+      cut.push(prism(hexagon(S.nut + 2 * tol), -(S.nutH + 0.3), 0.3));
+      break;
+    }
+    case 'keyhole': {
+      // Screw head goes in the round hole, then slides up the slot.
+      const z0 = e.through ? -(thick + 0.5) : -e.depth;
+      cut.push(prism(circle(S.head + 1), z0, 0.3));
+      cut.push(move(prism(M.CrossSection.square([S.clear, e.len], false).translate([-S.clear / 2, 0]), z0, 0.3), 0, 0, 0));
+      cut.push(move(cone(S.clear, S.clear, z0, 0.3), 0, e.len, 0));
+      break;
+    }
+  }
+  return { add, cut };
+}
+
+// Pattern offsets in the face plane, centred on (0, 0).
+function patternOffsets(pt) {
+  if (!pt) return [[0, 0]];
+  const out = [];
+  if (pt.type === 'row') for (let i = 0; i < pt.n; i++) out.push([(i - (pt.n - 1) / 2) * pt.dx, 0]);
+  else if (pt.type === 'grid') for (let i = 0; i < pt.nx; i++) for (let j = 0; j < pt.ny; j++) out.push([(i - (pt.nx - 1) / 2) * pt.dx, (j - (pt.ny - 1) / 2) * pt.dy]);
+  else if (pt.type === 'circle') for (let i = 0; i < pt.n; i++) { const a = (2 * Math.PI * i) / pt.n; out.push([pt.radius * Math.cos(a), pt.radius * Math.sin(a)]); }
+  return out.length ? out : [[0, 0]];
+}
+
+function transformTo(m, fr, du, dv) {
+  const [u, v, n, o] = [fr.u, fr.v, fr.n, fr.o];
+  const t = [o[0] + u[0] * du + v[0] * dv, o[1] + u[1] * du + v[1] * dv, o[2] + u[2] * du + v[2] * dv];
+  const r = m.transform([u[0], u[1], u[2], 0, v[0], v[1], v[2], 0, n[0], n[1], n[2], 0, t[0], t[1], t[2], 1]);
+  del(m);
+  return r;
+}
+
+function xyzFrame(e) {
+  // Rotations in degrees about X, then Y, then Z, applied to the +Z-pointing feature.
+  const rad = (d) => (d * Math.PI) / 180;
+  const rotv = (p) => {
+    let [x, y, z] = p;
+    let c = Math.cos(rad(e.rx)), s = Math.sin(rad(e.rx));
+    [y, z] = [y * c - z * s, y * s + z * c];
+    c = Math.cos(rad(e.ry)); s = Math.sin(rad(e.ry));
+    [x, z] = [x * c + z * s, -x * s + z * c];
+    c = Math.cos(rad(e.rz)); s = Math.sin(rad(e.rz));
+    [x, y] = [x * c - y * s, x * s + y * c];
+    return [x, y, z];
+  };
+  return frame(V(e.x, e.y, e.z), rotv([1, 0, 0]), rotv([0, 1, 0]), rotv([0, 0, 1]), 'main', 1000);
+}
+
+function applyExtras(part, list, tol) {
+  const faceOf = partFrames(part, list);
+  const perBody = new Map(); // role -> {add, cut}
+  for (const e of part.extras) {
+    const fr = e.face === 'xyz' ? xyzFrame(e) : faceOf(e.face);
+    const rot = e.rot || 0;
+    for (const [pu, pv] of patternOffsets(e.pattern)) {
+      const { add, cut } = featureLocal(e, fr.thick, tol);
+      const place = (m) => transformTo(rot ? rot_(m, rot) : m, fr, e.u + pu, e.v + pv);
+      const slot = perBody.get(fr.role) || { add: [], cut: [] };
+      slot.add.push(...add.map(place));
+      slot.cut.push(...cut.map(place));
+      perBody.set(fr.role, slot);
+    }
+  }
+  for (const [role, ops] of perBody) {
+    // Extras go on the body with that role; parts without roles (several loose
+    // bodies, like the clutch test) take them on their first body.
+    const b = list.find((x) => x.role === role) || (role === 'main' ? list[0] : null);
+    if (!b) { del(...ops.add, ...ops.cut); continue; }
+    let m = b.mf;
+    if (ops.add.length) m = uni([m, ...ops.add]);
+    if (ops.cut.length) m = sub(m, ...ops.cut);
+    b.mf = m;
+  }
+}
+const rot_ = (m, deg) => rot(m, 0, 0, deg);
+
 // ------------------------------------------------------------------- build
 
 // Returns bodies: [{ partId, name, slot, mesh: {positions, indices}, bbox, volume, area }]
@@ -409,6 +574,7 @@ export function buildSpec(spec) {
     let res;
     const p = part.params;
     switch (part.type) {
+      case 'custom': res = custom(p); break;
       case 'gridfinity_bin': res = gridfinityBin(p); break;
       case 'enclosure': res = enclosure(p, spec.tolerance); break;
       case 'lego_brick': res = legoBrick(p); break;
@@ -423,12 +589,14 @@ export function buildSpec(spec) {
       case 'lego_pin': res = legoPin(p); break;
       default: continue;
     }
-    const list = Array.isArray(res) ? res : [{ name: part.id, mf: res }];
+    const list = Array.isArray(res) ? res : [{ name: part.id, mf: res, role: 'main' }];
+    if (part.extras?.length) applyExtras(part, list, spec.tolerance);
     const qty = part.qty || 1;
     for (const b of list) {
       const name = list.length > 1 && b.name !== part.id ? `${part.id} ${b.name}` : part.id;
       const data = extract(b.mf);
       del(b.mf);
+      if (!data.mesh.indices.length) continue; // e.g. a custom part with nothing added yet
       for (let k = 0; k < qty; k++) out.push({ partId: part.id, name: qty > 1 ? `${name} #${k + 1}` : name, slot: b.slot || part.slot, ...data });
     }
   }

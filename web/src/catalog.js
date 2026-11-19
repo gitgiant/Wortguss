@@ -13,6 +13,17 @@ export const MATERIALS = {
 export const BED = { x: 256, y: 256, z: 256 }; // Bambu Lab A1
 
 export const TYPES = {
+  custom: {
+    label: 'Custom part',
+    blurb: 'Starts from a plain block, cylinder or nothing; build the rest with extras.',
+    params: {
+      base: { label: 'Start from', type: 'choice', options: ['box', 'cylinder', 'none'], default: 'box' },
+      w: { label: 'Width', type: 'num', unit: 'mm', min: 1, max: 250, step: 0.5, default: 40 },
+      d: { label: 'Depth', type: 'num', unit: 'mm', min: 1, max: 250, step: 0.5, default: 30 },
+      h: { label: 'Height', type: 'num', unit: 'mm', min: 0.4, max: 250, step: 0.2, default: 10 },
+      radius: { label: 'Corner radius', type: 'num', unit: 'mm', min: 0, max: 50, step: 0.5, default: 2 },
+    },
+  },
   gridfinity_bin: {
     label: 'Gridfinity bin',
     blurb: '42 mm grid, 7 mm height units, optional magnet pockets and dividers.',
@@ -41,11 +52,6 @@ export const TYPES = {
       lidSlot: { label: 'Lid AMS slot', type: 'int', min: 1, max: 4, default: 2 },
       lidThickness: { label: 'Lid thickness', type: 'num', unit: 'mm', min: 1, max: 6, step: 0.1, default: 2 },
       lipDepth: { label: 'Lid lip depth', type: 'num', unit: 'mm', min: 1, max: 10, step: 0.5, default: 3 },
-      cableHole: { label: 'Cable hole Ø (0 = none)', type: 'num', unit: 'mm', min: 0, max: 30, step: 0.5, default: 0 },
-      cutouts: {
-        label: 'Openings', type: 'cutouts', default: [],
-        help: 'list of {side: front|back|left|right|lid, shape: rect|slot|round, w, h (mm; round uses w as Ø), x: offset from the side\'s centre (mm, + is right as you face that side; for lid + is right seen from above), z: centre height above the inside floor (mm; for lid, + is towards the back)}. A slot is a rounded-end rectangle, good for USB-C (about 9.5×3.8).',
-      },
     },
   },
   lego_brick: {
@@ -175,7 +181,11 @@ export const PRESETS = [
   {
     key: 'enclosure',
     name: 'Sensor enclosure',
-    parts: [{ id: 'box', type: 'enclosure', slot: 3, params: { w: 60, d: 40, h: 25, lidSlot: 2, cableHole: 0, cutouts: [{ side: 'front', shape: 'slot', w: 9.5, h: 3.8, x: 0, z: 6 }, { side: 'back', shape: 'round', w: 6, x: 0, z: 10 }] } }],
+    parts: [{ id: 'box', type: 'enclosure', slot: 3, params: { w: 60, d: 40, h: 25, lidSlot: 2 }, extras: [
+      { op: 'cut', shape: 'slot', face: 'front', w: 9.5, h: 3.8, v: -5.5, through: true },
+      { op: 'cut', shape: 'cylinder', face: 'back', d: 6, v: -3.5, through: true },
+      { op: 'add', shape: 'standoff', face: 'floor', size: 'M2.5', depth: 5, pattern: { type: 'grid', nx: 2, ny: 2, dx: 48, dy: 28 } },
+    ] }],
   },
   {
     key: 'lego',
@@ -210,6 +220,15 @@ export const PRESETS = [
     parts: [{ id: 'cal', type: 'lego_calibration', slot: 1, params: {} }],
   },
   {
+    key: 'custom',
+    name: 'Wall plate',
+    parts: [{ id: 'plate', type: 'custom', slot: 1, params: { base: 'box', w: 80, d: 50, h: 4, radius: 4 }, extras: [
+      { op: 'cut', shape: 'countersunk', face: 'top', size: 'M4', through: true, pattern: { type: 'row', n: 2, dx: 60 } },
+      { op: 'add', shape: 'cylinder', face: 'top', d: 12, depth: 20, v: 5 },
+      { op: 'cut', shape: 'hex', face: 'top', d: 8, depth: 15, v: 5 },
+    ] }],
+  },
+  {
     key: 'bracket',
     name: 'Shelf bracket',
     parts: [{ id: 'bracket', type: 'l_bracket', slot: 3, params: {} }],
@@ -220,3 +239,60 @@ export const PRESETS = [
     parts: [{ id: 'holder', type: 'tool_holder', slot: 4, params: {} }],
   },
 ];
+
+// ------------------------------------------------------------------ extras
+// Features added to or cut from any part, placed on a named face.
+// u = right as you look at the face from outside (top/bottom/floor/lid: seen from above),
+// v = up on walls, towards the back on top/bottom/floor/lid faces. Offsets are from the
+// face's centre. Adds grow out of the face; cuts sink into it (or go through).
+export const FACES = {
+  top: 'Top', bottom: 'Bottom', front: 'Front', back: 'Back', left: 'Left', right: 'Right',
+  floor: 'Inside floor', inner_front: 'Inside front wall', inner_back: 'Inside back wall',
+  inner_left: 'Inside left wall', inner_right: 'Inside right wall',
+  lid_top: 'Lid top', lid_under: 'Lid underside', xyz: 'Free position (XYZ)',
+};
+
+// Metric hardware, mm. clear = clearance hole, tap = hole a screw cuts its own thread in,
+// insert = heat-set insert hole (CNC Kitchen / Ruthex style), nut = across flats, cb = head.
+export const SCREWS = {
+  M2: { clear: 2.4, tap: 1.8, insert: 3.2, insertDepth: 4, nut: 4.0, nutH: 1.6, head: 4.0, cs: 4.2 },
+  'M2.5': { clear: 2.9, tap: 2.2, insert: 3.6, insertDepth: 4.5, nut: 5.0, nutH: 2.0, head: 4.7, cs: 5.0 },
+  M3: { clear: 3.4, tap: 2.6, insert: 4.0, insertDepth: 5.7, nut: 5.5, nutH: 2.4, head: 5.7, cs: 6.3 },
+  M4: { clear: 4.5, tap: 3.4, insert: 5.6, insertDepth: 8.1, nut: 7.0, nutH: 3.2, head: 7.2, cs: 8.4 },
+  M5: { clear: 5.5, tap: 4.2, insert: 6.4, insertDepth: 9.5, nut: 8.0, nutH: 4.0, head: 8.7, cs: 10.4 },
+};
+
+// Field sets per shape. `op` fixed means the shape is always that op.
+const N = (label, min, max, def, step = 0.1) => ({ label, type: 'num', unit: 'mm', min, max, default: def, step });
+export const EXTRA_SHAPES = {
+  box: { label: 'Box', fields: { w: N('Width', 0.4, 250, 10), h: N('Height', 0.4, 250, 10), r: N('Corner radius', 0, 50, 0.5), depth: N('Depth', 0.2, 250, 5) } },
+  cylinder: { label: 'Cylinder / cone', fields: { d: N('Ø', 0.4, 250, 6), d2: N('Top Ø (0 = same)', 0, 250, 0), depth: N('Depth', 0.2, 250, 5) } },
+  sphere: { label: 'Sphere / dome', fields: { d: N('Ø', 0.4, 250, 10) } },
+  slot: { label: 'Slot (rounded ends)', fields: { w: N('Length', 0.4, 250, 9.5), h: N('Width', 0.4, 250, 3.8), depth: N('Depth', 0.2, 250, 5) } },
+  hex: { label: 'Hex prism', fields: { d: N('Across flats', 0.4, 250, 5.5), depth: N('Depth', 0.2, 250, 3) } },
+  standoff: { label: 'PCB standoff', op: 'add', fields: { od: N('Outer Ø', 2, 30, 5.5), depth: N('Height', 1, 100, 5) } },
+  insert_post: { label: 'Heat-set insert post', op: 'add', fields: { od: N('Outer Ø (0 = auto)', 0, 30, 0), depth: N('Height', 2, 100, 8) } },
+  screw_hole: { label: 'Screw hole (counterbored)', op: 'cut', fields: { cb: N('Counterbore depth (0 = none)', 0, 50, 3), depth: N('Depth', 0.5, 250, 5) } },
+  countersunk: { label: 'Countersunk screw hole', op: 'cut', fields: { depth: N('Depth', 0.5, 250, 5) } },
+  nut_trap: { label: 'Nut trap', op: 'cut', fields: { depth: N('Screw hole depth', 0.5, 250, 5) } },
+  keyhole: { label: 'Keyhole (hang on a screw)', op: 'cut', fields: { len: N('Slot length', 2, 50, 8), depth: N('Depth', 0.5, 250, 3) } },
+  magnet: { label: 'Magnet pocket', op: 'cut', fields: { d: N('Magnet Ø', 1, 50, 6), depth: N('Magnet height', 0.5, 50, 2) } },
+};
+export const SCREW_SHAPES = new Set(['standoff', 'insert_post', 'screw_hole', 'countersunk', 'nut_trap', 'keyhole']);
+
+export const PATTERNS = {
+  none: { label: 'Single' },
+  row: { label: 'Row', fields: { n: { label: 'Count', type: 'int', min: 1, max: 50, default: 3 }, dx: N('Spacing', 0.5, 250, 10) } },
+  grid: { label: 'Grid', fields: { nx: { label: 'Columns', type: 'int', min: 1, max: 30, default: 2 }, ny: { label: 'Rows', type: 'int', min: 1, max: 30, default: 2 }, dx: N('Column spacing', 0.5, 250, 20), dy: N('Row spacing', 0.5, 250, 20) } },
+  circle: { label: 'Circle', fields: { n: { label: 'Count', type: 'int', min: 2, max: 60, default: 6 }, radius: N('Radius', 0.5, 125, 15) } },
+};
+
+export const EXTRAS_HELP = `Every part may have "extras": a list of features added to or cut from it. Each extra:
+{op: add|cut, shape, face, u, v, rot, through, size, pattern, ...shape fields}
+- face: ${Object.keys(FACES).join('|')}. Inside faces exist on enclosure and gridfinity_bin; lid faces on enclosures with a lid. For face xyz give x, y, z (mm from the centre of the part's footprint at bed level) and rx, ry, rz (degrees); the feature then points up (+Z).
+- u, v: offset from the face centre in mm. u = right as you look at the face from outside (on top, bottom, floor and lid faces: seen from above, u = right, v = towards the back). On walls v = up. rot: degrees about the face normal.
+- add grows out of the face by depth; cut sinks into it by depth, or through:true cuts through that wall/floor/lid.
+- shapes and their fields: ${Object.entries(EXTRA_SHAPES).map(([k, s]) => `${k}${s.op ? ` (always ${s.op})` : ''} {${Object.keys(s.fields).join(', ')}}`).join('; ')}.
+- size: ${Object.keys(SCREWS).join('|')} for ${[...SCREW_SHAPES].join(', ')} (standoff takes a self-tapping screw, insert_post a heat-set insert).
+- pattern: {type: none|row|grid|circle, n, dx (row); nx, ny, dx, dy (grid); n, radius (circle)}, centred on u, v. e.g. 4 PCB standoffs on a 58x49 grid: {op:'add', shape:'standoff', face:'floor', size:'M2.5', pattern:{type:'grid', nx:2, ny:2, dx:58, dy:49}}.
+- USB-C port: {op:'cut', shape:'slot', face:'front', w:9.5, h:3.8, through:true, v: <height>}.`;

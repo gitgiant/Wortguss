@@ -33,8 +33,16 @@ CAD later. Units are millimetres.
   `make-a1-profile.mjs` keep the flattened A1 presets in case that is revisited.
 
 - `parts[].qty` (optional, 1–20) prints several copies of a part.
+- `parts[].extras` (optional) adds or cuts features on a named face of any part:
+  basic shapes (box, cylinder/cone, sphere, slot, hex), mounting holes (screw hole,
+  countersunk, nut trap, keyhole), hardware (PCB standoff, heat-set insert post,
+  magnet pocket), with row/grid/circle patterns. Full field list: `EXTRAS_HELP`
+  in `web/src/catalog.js`. Example: four M2.5 standoffs on an enclosure floor:
+  `{"op":"add","shape":"standoff","face":"floor","size":"M2.5","depth":5,"pattern":{"type":"grid","nx":2,"ny":2,"dx":58,"dy":49}}`.
+- The `custom` part type starts from a block, cylinder or nothing; build it with extras.
+- Old enclosure `cableHole` / `cutouts` params are converted to extras on load.
 
-Part types in v1: `gridfinity_bin`, `enclosure`, `l_bracket`, `tool_holder`,
+Part types in v1: `custom`, `gridfinity_bin`, `enclosure`, `l_bracket`, `tool_holder`,
 `lego_brick` (bricks, plates, tiles), `lego_technic_brick`, `lego_slope`,
 `lego_round`, `lego_liftarm`, `lego_axle`, `lego_pin`, `lego_calibration`.
 
