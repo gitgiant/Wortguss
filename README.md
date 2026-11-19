@@ -32,6 +32,17 @@ npm run build   # writes dist/wortguss.html, the page to publish as an artifact
 The libraries are bundled rather than loaded from a CDN because the artifact
 sandbox only allows scripts from CDNs, not `.wasm` fetches.
 
+## Two pages, one codebase
+
+- **Claude page** (artifact): describe parts by voice or text, synced history.
+  *Open on GitHub to download* hands the current part to the site in the link.
+- **Site** (GitHub Pages, https://gitgiant.github.io/Wortguss/): the same editor
+  with direct *Download 3MF* and *Download STL* buttons, which claude.ai blocks.
+  Built by `.github/workflows/pages.yml`; enable once under Settings → Pages →
+  Source: GitHub Actions.
+
+`npm run build` writes both: `dist/wortguss.html` (artifact) and `../site/index.html`.
+
 ## Hosted 3MFs
 
 `prints/` holds a ready-to-print 3MF for every spec in `specs/`, plus a

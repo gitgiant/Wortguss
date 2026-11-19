@@ -5,8 +5,8 @@ import wasmBinary from 'manifold-3d/manifold.wasm';
 import { TYPES, PRESETS, MATERIALS, BED } from './catalog.js';
 import { normalizeSpec, normalizePart, specFromPreset, slugify } from './spec.js';
 import { initGeometry, buildSpec, estimate, resolveTools } from './geometry.js';
-import { build3mf, layout, stlFiles, stlName } from './threemf.js';
-import { zipSync, strToU8 } from 'fflate';
+import { build3mf, layout, stlFiles } from './threemf.js';
+import { zipSync, strToU8, strFromU8, deflateSync, inflateSync } from 'fflate';
 
 const $ = (id) => document.getElementById(id);
 const h = (tag, attrs = {}, ...kids) => {
@@ -208,19 +208,52 @@ function renderStats() {
   $('vbadge').textContent = `A1 plate · ${bodies.length} bod${bodies.length === 1 ? 'y' : 'ies'}`;
 }
 
-// Single-file downloads come from the repo: CI builds prints/<name>.3mf and
-// prints/<name>-stl/*.stl for every specs/<name>.json. (claude.ai refuses to
-// save .3mf/.stl files from the page itself, so these are GitHub links.)
-const REPO = 'https://github.com/gitgiant/Wortguss';
-const isPreset = (slug) => PRESETS.some((p) => slugify(p.name) === slug);
+// Two builds share this code (esbuild defines __TARGET__):
+//  - 'artifact': the Claude page (ask Claude, dictation, synced history). claude.ai
+//    refuses .3mf/.stl downloads, so it hands the part to the site in the link.
+//  - 'pages': the GitHub Pages site, which saves .3mf/.stl files directly.
+const TARGET = typeof __TARGET__ === 'string' ? __TARGET__ : 'artifact';
+const SITE = 'https://gitgiant.github.io/Wortguss/';
+const CLAUDE_PAGE = 'https://claude.ai/artifact/6hQVHc7pSVEbJwVpVt41Si';
+
+const b64url = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const unb64url = (t) => Uint8Array.from(atob(t.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+export const encodePart = () => b64url(deflateSync(strToU8(JSON.stringify({ id: project.id, spec })), { level: 9 }));
+const decodePart = (t) => JSON.parse(strFromU8(inflateSync(unb64url(t))));
+
+function downloadBlob(name, data, type) {
+  const url = URL.createObjectURL(new Blob([data], { type }));
+  const a = h('a', { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
 function renderHosted() {
-  const slug = slugify(spec.name);
-  $('dl3mf').href = `${REPO}/raw/HEAD/prints/${slug}.3mf`;
-  $('dlStl').href = bodies.length === 1 ? `${REPO}/raw/HEAD/prints/${slug}-stl/${stlName(bodies[0])}` : `${REPO}/tree/HEAD/prints/${slug}-stl`;
-  $('dlStl').textContent = bodies.length === 1 ? 'Download STL' : `Download STLs (${bodies.length})`;
-  $('hosted').textContent = isPreset(slug)
-    ? 'Download 3MF and STL get the single files from the Wortguss repo on GitHub.'
-    : `Download 3MF and STL work once specs/${slug}.json (in the zip) is committed to the Wortguss repo.`;
+  const ex = $('exports');
+  const base = slugify(spec.name);
+  if (TARGET === 'pages') {
+    const stls = Object.entries(stlFiles(bodies));
+    ex.replaceChildren(
+      h('button', { class: 'btn primary', type: 'button', id: 'dl3mf', text: 'Download 3MF', onclick: () => {
+        downloadBlob(`${base}.3mf`, build3mf(spec, bodies), 'model/3mf');
+        $('exportNote').textContent = `Saved ${base}.3mf. Open it in Bambu Studio.`;
+      } }),
+      ...stls.map(([fn, data], i) => h('button', { class: 'btn', type: 'button', id: `dlStl${i}`, text: stls.length === 1 ? 'Download STL' : `STL: ${bodies[i].name}`, onclick: () => {
+        downloadBlob(fn, data, 'model/stl');
+        $('exportNote').textContent = `Saved ${fn}. The AMS slot is in the file name.`;
+      } })),
+      h('button', { class: 'btn', type: 'button', id: 'dlZip', text: 'Download zip', onclick: save }),
+    );
+    if (!$('exportNote').textContent) $('exportNote').textContent = 'Each button saves one file. The zip holds them all plus the spec.';
+  } else {
+    ex.replaceChildren(
+      h('a', { class: 'btn primary', id: 'openSite', href: `${SITE}#s=${encodePart()}`, target: '_blank', rel: 'noopener', text: 'Open on GitHub to download' }),
+      h('button', { class: 'btn', type: 'button', id: 'dlZip', text: 'Download zip', onclick: save }),
+    );
+    if (!$('exportNote').textContent) $('exportNote').textContent = 'Opens this part on the Wortguss site, where Download 3MF and Download STL save the files directly.';
+  }
 }
 
 // ------------------------------------------------------------------ panels
@@ -514,6 +547,13 @@ function initDictation(d) {
 // ---------------------------------------------------------------- downloads
 async function save() {
   const note = $('exportNote');
+  if (TARGET === 'pages') {
+    const base = slugify(spec.name);
+    const files = { [`${base}.3mf`]: build3mf(spec, bodies), ...stlFiles(bodies), [`${base}.json`]: strToU8(JSON.stringify(spec, null, 2)) };
+    downloadBlob(`${base}.zip`, zipSync(files, { level: 6 }), 'application/zip');
+    note.textContent = `Saved ${base}.zip with the 3MF, STLs and spec.`;
+    return;
+  }
   if (!caps.downloads) { note.textContent = 'Saving files is not available in this view. Open the page on claude.ai to download.'; return; }
   const base = slugify(spec.name);
   try {
@@ -538,24 +578,55 @@ function openProject(p) {
   rebuild();
 }
 
+// A part handed over from the Claude page in the link: #s=<deflated JSON>.
+function importFromHash() {
+  const m = /^#s=([\w-]+)$/.exec(location.hash);
+  if (!m) return null;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch {}
+  try {
+    const { id, spec: s } = decodePart(m[1]);
+    const clean = normalizeSpec(s);
+    let p = projects.find((x) => x.id === id);
+    if (p) {
+      const last = p.versions[p.versions.length - 1].spec;
+      if (JSON.stringify(last) !== JSON.stringify(clean)) p.versions.push({ spec: clean, note: 'From Claude', at: Date.now() });
+      p.name = clean.name;
+    } else {
+      p = { id: String(id || slugify(clean.name)).slice(0, 80), name: clean.name, versions: [{ spec: clean, note: 'From Claude', at: Date.now() }] };
+      projects.unshift(p);
+    }
+    store.save(p);
+    return p;
+  } catch (e) {
+    console.warn('bad part link', e);
+    return null;
+  }
+}
+
 async function boot() {
   initViewer();
   initGeometry(await Module({ wasmBinary }));
 
   // Start right away from local data; capabilities light up when they answer.
   projects = await store.load();
+  const imported = importFromHash();
   if (!projects.length) newProject(specFromPreset('gridfinity'), 'Example: Gridfinity bin');
-  openProject(projects[0]);
+  openProject(imported || projects[0]);
+  if (TARGET === 'pages') {
+    $('askForm').querySelector('.askrow').replaceWith(h('div', { class: 'reply' }, 'To describe a change, use ',
+      h('a', { href: CLAUDE_PAGE, target: '_blank', rel: 'noopener', text: 'Wortguss in Claude' }),
+      ', then tap “Open on GitHub to download”. Or edit the part settings here.'));
+  }
 
   $('projectSel').addEventListener('change', (e) => { if (dirtyNote) commit(dirtyNote); openProject(projects.find((p) => p.id === e.target.value)); });
   $('newBtn').addEventListener('click', () => { topMode = topMode === 'new' ? null : 'new'; renderTop(); });
   $('renameBtn').addEventListener('click', () => { topMode = topMode === 'rename' ? null : 'rename'; renderTop(); });
   for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => { tab = b.dataset.tab; renderPanel(); });
   $('askForm').addEventListener('submit', (e) => { e.preventDefault(); ask($('askInput').value); });
-  $('askInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); ask($('askInput').value); } });
-  $('dlPrint').addEventListener('click', save);
+  $('askInput')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); ask($('askInput').value); } });
   window.addEventListener('pagehide', () => { if (dirtyNote) commit(dirtyNote); });
 
+  if (TARGET === 'pages') return;
   const use = (n) => (window.claude?.use ? window.claude.use(n).catch(() => null) : Promise.resolve(null));
   use('sample').then((s) => { caps.sample = s; if (!s) $('askInput').placeholder = 'Asking Claude is not available here. Use the settings below.'; });
   use('dictation').then((d) => { caps.dictation = d; if (d) initDictation(d); });

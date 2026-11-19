@@ -55,6 +55,7 @@ header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
 .askrow textarea { flex: 1; min-width: 0; resize: vertical; min-height: 44px; max-height: 200px; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 10px; }
 .reply { font-size: 13px; color: var(--muted); min-height: 1.2em; }
 .reply.err { color: var(--warn); }
+.reply a, .note-line a { color: var(--accent); }
 .btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 500; white-space: nowrap; }
 .btn:hover { border-color: var(--muted); }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -131,13 +132,8 @@ textarea.code { width: 100%; min-height: 320px; font: 12.5px/1.5 var(--mono); bo
         </div>
         <div class="reply" id="reply" aria-live="polite"></div>
       </form>
-      <div class="exports">
-        <button class="btn primary" id="dlPrint" type="button">Download zip</button>
-        <a class="btn" id="dl3mf" target="_blank" rel="noopener">Download 3MF</a>
-        <a class="btn" id="dlStl" target="_blank" rel="noopener">Download STL</a>
-      </div>
-      <div class="note-line" id="hosted"></div>
-      <div class="note-line" id="exportNote">The zip holds the .3mf, an .stl per part and the spec.</div>
+      <div class="exports" id="exports"></div>
+      <div class="note-line" id="exportNote"></div>
     </section>
 
     <section class="right" aria-label="Part settings">
