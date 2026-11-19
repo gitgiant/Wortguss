@@ -8,8 +8,11 @@ Describe a part, tweak it, and save a 3MF with colours mapped to AMS slots.
 `web/` builds a single-file Claude artifact page:
 
 - three.js preview on the A1 plate, geometry from manifold-3d (WASM, inlined)
-- presets: Gridfinity bins, enclosures with press-fit lids, Lego-compatible bricks,
-  a Lego clutch calibration print, L brackets, tool holders
+- presets: Gridfinity bins, enclosures with press-fit lids, L brackets, tool holders,
+  and a Lego-compatible kit: bricks, plates, tiles, Technic bricks with pin or axle
+  holes (e.g. 1×2 with 2 holes), slopes, round bricks, liftarms, axles, pins, plus a
+  stud-clutch calibration print
+- any part can have a quantity; the plate layout wraps into rows to fit the A1 bed
 - ask Claude in the page (typed, or spoken where dictation is offered) to change
   the part or go back to an earlier version
 - per-part AMS slot, editable slot colours, PLA/PETG, clearance for mating parts

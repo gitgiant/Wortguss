@@ -28,5 +28,11 @@ CAD later. Units are millimetres.
   takes inline `{ "name", "d" }` / `{ "name", "w", "t" }` objects.
 - Every exported 3MF carries its spec at `Metadata/wortguss.spec.json`.
 
-Part types in v1: `gridfinity_bin`, `enclosure`, `lego_brick`,
-`lego_calibration`, `l_bracket`, `tool_holder`.
+- `parts[].qty` (optional, 1–20) prints several copies of a part.
+
+Part types in v1: `gridfinity_bin`, `enclosure`, `l_bracket`, `tool_holder`,
+`lego_brick` (bricks, plates, tiles), `lego_technic_brick`, `lego_slope`,
+`lego_round`, `lego_liftarm`, `lego_axle`, `lego_pin`, `lego_calibration`.
+
+Lego fits to tune on your printer: stud Ø (clutch test), Technic hole Ø
+(default 4.9 for a 4.8 pin), axle cross size (default 4.7).

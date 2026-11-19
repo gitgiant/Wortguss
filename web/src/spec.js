@@ -6,6 +6,7 @@ const HEX = /^#[0-9a-f]{6}$/i;
 
 function clampParam(def, v) {
   if (def.type === 'bool') return typeof v === 'boolean' ? v : def.default;
+  if (def.type === 'choice') return def.options.includes(v) ? v : def.default;
   if (def.type === 'tools') {
     if (!Array.isArray(v)) return def.default.slice();
     return v
@@ -40,7 +41,8 @@ export function normalizePart(p, i) {
   for (const [k, def] of Object.entries(defs)) params[k] = clampParam(def, p?.params?.[k]);
   const id = String(p?.id || `part${i + 1}`).replace(/[^\w-]/g, '').slice(0, 32) || `part${i + 1}`;
   const slot = Math.min(4, Math.max(1, Math.round(+p?.slot || 1)));
-  return { id, type, slot, params };
+  const qty = Math.min(20, Math.max(1, Math.round(+p?.qty || 1)));
+  return qty > 1 ? { id, type, slot, qty, params } : { id, type, slot, params };
 }
 
 export function normalizeSpec(s) {

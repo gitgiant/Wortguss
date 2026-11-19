@@ -1,0 +1,47 @@
+{
+  "wortguss": 1,
+  "name": "Technic brick 1×2, 2 holes",
+  "material": "PLA",
+  "tolerance": 0.2,
+  "colors": [
+    "#f2f2ef",
+    "#d64933",
+    "#2b2d42",
+    "#2a9d8f"
+  ],
+  "tools": {
+    "screwdriver-small": {
+      "d": 6,
+      "note": "Shaft-side grip, measured at widest"
+    },
+    "screwdriver-large": {
+      "d": 9.5
+    },
+    "hex-key-set": {
+      "w": 22,
+      "t": 9
+    },
+    "flush-cutters": {
+      "w": 18,
+      "t": 10
+    },
+    "caliper-jaw": {
+      "w": 16,
+      "t": 4
+    }
+  },
+  "parts": [
+    {
+      "id": "technic",
+      "type": "lego_technic_brick",
+      "slot": 2,
+      "params": {
+        "length": 2,
+        "placement": "studs",
+        "holeType": "pin",
+        "holeD": 4.9,
+        "studD": 4.8
+      }
+    }
+  ]
+}

@@ -40,7 +40,8 @@
         "ny": 2,
         "plates": 3,
         "studD": 4.8,
-        "tubeOD": 6.51
+        "tubeOD": 6.51,
+        "studs": true
       }
     }
   ]

@@ -252,6 +252,11 @@ function field(def, value, onChange, idBase) {
       h('input', { type: 'checkbox', id, checked: value, onchange: (e) => onChange(e.target.checked) }),
       h('label', { for: id, text: def.label }));
   }
+  if (def.type === 'choice') {
+    return h('div', { class: 'field' },
+      h('label', { for: id, text: def.label }),
+      h('select', { id, onchange: (e) => onChange(e.target.value) }, def.options.map((o) => h('option', { value: o, selected: o === value, text: o }))));
+  }
   if (def.type === 'tools') {
     const names = Object.keys(spec.tools);
     const on = new Set(value.filter((t) => typeof t === 'string'));
@@ -283,7 +288,9 @@ function partsPanel() {
       missing.length ? h('p', { class: 'reply err', text: `Not in the tool library: ${missing.join(', ')}. Using 8 mm until you add them.` }) : null,
       h('div', { class: 'field' }, h('label', { text: 'AMS slot' }),
         slotPicker(part.slot, (s) => update((p) => { p.slot = s; }, `${part.id}: AMS slot ${s}`), `AMS slot for ${part.id}`)),
-      h('div', { class: 'fields' }, Object.entries(t.params).map(([k, def]) =>
+      h('div', { class: 'fields' },
+        field({ label: 'Quantity', type: 'int', min: 1, max: 20 }, part.qty || 1, (v) => update((p) => { p.qty = +v; }, `${part.id}: quantity`), `${i}-qty`),
+        Object.entries(t.params).map(([k, def]) =>
         field(def, part.params[k], (v) => update((p) => { p.params[k] = v; }, `${part.id}: ${def.label.toLowerCase()}`), `${i}-${k}`))),
       spec.parts.length > 1 ? h('div', {}, h('button', { class: 'btn', type: 'button', text: `Remove ${part.id}`, onclick: () => {
         const s = structuredClone(spec); s.parts.splice(i, 1); setSpec(s, { note: `Removed ${part.id}`, now: true });
@@ -407,7 +414,7 @@ async function ask(text) {
   reply('Thinking…');
   const est = estimate(bodies, MATERIALS[spec.material].density);
   const prompt = `You edit 3D-printable part specs for a Bambu Lab A1 (256 mm cube bed, 4-slot AMS). Units are mm.
-The spec JSON has: name, material (${Object.keys(MATERIALS).join('|')}), tolerance (clearance for mating parts), colors (4 hex colours = AMS slots 1-4), tools (tool library: name -> {d} or {w,t}, mm), parts (list of {id, type, slot 1-4, params}).
+The spec JSON has: name, material (${Object.keys(MATERIALS).join('|')}), tolerance (clearance for mating parts), colors (4 hex colours = AMS slots 1-4), tools (tool library: name -> {d} or {w,t}, mm), parts (list of {id, type, slot 1-4, optional qty 1-20 for copies, params}). A request for a kit or several pieces becomes several parts.
 
 Part types and their params:
 ${catalogText()}

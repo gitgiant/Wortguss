@@ -1,0 +1,164 @@
+{
+  "wortguss": 1,
+  "name": "Lego part kit",
+  "material": "PLA",
+  "tolerance": 0.2,
+  "colors": [
+    "#f2f2ef",
+    "#d64933",
+    "#2b2d42",
+    "#2a9d8f"
+  ],
+  "tools": {
+    "screwdriver-small": {
+      "d": 6,
+      "note": "Shaft-side grip, measured at widest"
+    },
+    "screwdriver-large": {
+      "d": 9.5
+    },
+    "hex-key-set": {
+      "w": 22,
+      "t": 9
+    },
+    "flush-cutters": {
+      "w": 18,
+      "t": 10
+    },
+    "caliper-jaw": {
+      "w": 16,
+      "t": 4
+    }
+  },
+  "parts": [
+    {
+      "id": "brick2x4",
+      "type": "lego_brick",
+      "slot": 2,
+      "params": {
+        "nx": 4,
+        "ny": 2,
+        "plates": 3,
+        "studD": 4.8,
+        "tubeOD": 6.51,
+        "studs": true
+      }
+    },
+    {
+      "id": "brick2x2",
+      "type": "lego_brick",
+      "slot": 2,
+      "params": {
+        "nx": 2,
+        "ny": 2,
+        "plates": 3,
+        "studD": 4.8,
+        "tubeOD": 6.51,
+        "studs": true
+      }
+    },
+    {
+      "id": "plate2x4",
+      "type": "lego_brick",
+      "slot": 3,
+      "params": {
+        "nx": 4,
+        "ny": 2,
+        "plates": 1,
+        "studD": 4.8,
+        "tubeOD": 6.51,
+        "studs": true
+      }
+    },
+    {
+      "id": "tile2x2",
+      "type": "lego_brick",
+      "slot": 1,
+      "params": {
+        "nx": 2,
+        "ny": 2,
+        "plates": 1,
+        "studD": 4.8,
+        "tubeOD": 6.51,
+        "studs": false
+      }
+    },
+    {
+      "id": "technic1x2",
+      "type": "lego_technic_brick",
+      "slot": 3,
+      "params": {
+        "length": 2,
+        "placement": "studs",
+        "holeType": "pin",
+        "holeD": 4.9,
+        "studD": 4.8
+      }
+    },
+    {
+      "id": "technic1x4",
+      "type": "lego_technic_brick",
+      "slot": 3,
+      "params": {
+        "length": 4,
+        "placement": "between",
+        "holeType": "pin",
+        "holeD": 4.9,
+        "studD": 4.8
+      }
+    },
+    {
+      "id": "slope2x2",
+      "type": "lego_slope",
+      "slot": 2,
+      "params": {
+        "nx": 2,
+        "ny": 2,
+        "plates": 3,
+        "studD": 4.8
+      }
+    },
+    {
+      "id": "round2x2",
+      "type": "lego_round",
+      "slot": 4,
+      "params": {
+        "size": "2x2",
+        "plates": 3,
+        "holeD": 4.9,
+        "studD": 4.8
+      }
+    },
+    {
+      "id": "liftarm5",
+      "type": "lego_liftarm",
+      "slot": 4,
+      "params": {
+        "holes": 5,
+        "thin": false,
+        "holeType": "pin",
+        "axleEnds": true,
+        "holeD": 4.9
+      }
+    },
+    {
+      "id": "axle4",
+      "type": "lego_axle",
+      "slot": 1,
+      "params": {
+        "length": 4,
+        "size": 4.7
+      }
+    },
+    {
+      "id": "pin",
+      "type": "lego_pin",
+      "slot": 1,
+      "qty": 4,
+      "params": {
+        "pinD": 4.8,
+        "slotted": true
+      }
+    }
+  ]
+}

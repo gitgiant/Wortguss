@@ -159,7 +159,7 @@ function legoBrick(p, notches = 0) {
   let body = sub(box(-W / 2, -D / 2, 0, W / 2, D / 2, H), box(-W / 2 + WALL, -D / 2 + WALL, -1, W / 2 - WALL, D / 2 - WALL, H - TOP));
   const adds = [];
   const sx = (i) => (i - (p.nx - 1) / 2) * PITCH, sy = (j) => (j - (p.ny - 1) / 2) * PITCH;
-  for (let i = 0; i < p.nx; i++) for (let j = 0; j < p.ny; j++) adds.push(move(cyl(1.7, p.studD), sx(i), sy(j), H - 0.01));
+  if (p.studs !== false) for (let i = 0; i < p.nx; i++) for (let j = 0; j < p.ny; j++) adds.push(move(cyl(1.7, p.studD), sx(i), sy(j), H - 0.01));
   const innerH = H - TOP + 0.01;
   if (p.nx > 1 && p.ny > 1) {
     for (let i = 0; i < p.nx - 1; i++) for (let j = 0; j < p.ny - 1; j++) {
@@ -182,6 +182,130 @@ function legoBrick(p, notches = 0) {
     }
     body = sub(body, ...cuts);
   }
+  return body;
+}
+
+// ------------------------------------------------------------ Lego Technic
+const PITCH = 8;
+
+// Hole cutter along +Z from z=0 to L, centred on x=y=0.
+// Pin holes get the 6.2 mm counterbore at both faces when `cb` is set.
+function holeCutter(type, d, L, cb) {
+  if (type === 'axle') {
+    const arm = 1.8 + (d - 4.8);
+    const a = M.CrossSection.square([d, arm], true), b = M.CrossSection.square([arm, d], true);
+    const cs = M.CrossSection.union(a, b);
+    del(a, b);
+    const m = M.Manifold.extrude(cs, L + 2);
+    del(cs);
+    return move(m, 0, 0, -1);
+  }
+  const parts = [cyl(L + 2, d, -1)];
+  if (cb) parts.push(cyl(1.8, 6.3, -1), cyl(1.8, 6.3, L - 0.8));
+  return uni(parts);
+}
+
+// Same cutter, running along +Y from y=-L/2 to L/2 at (x, z).
+function holeAlongY(type, d, L, cb, x, z) {
+  return move(rot(holeCutter(type, d, L, cb), -90, 0, 0), x, -L / 2, z);
+}
+
+function legoTechnic(p) {
+  const n = p.length, D = 7.8, Z = 5.8;
+  let body = legoBrick({ nx: n, ny: 1, plates: 3, studD: p.studD, tubeOD: 6.51, studs: true });
+  const between = p.placement === 'between' && n > 1;
+  const xs = between ? Array.from({ length: n - 1 }, (_, i) => (i - (n - 2) / 2) * PITCH) : Array.from({ length: n }, (_, i) => (i - (n - 1) / 2) * PITCH);
+  // Solid bosses around each hole (bottom at z≈2, clear of a 1.7 mm stud below).
+  body = uni([body, ...xs.map((x) => move(rot(cyl(D, 7.6), -90, 0, 0), x, -D / 2, Z))]);
+  return sub(body, ...xs.map((x) => holeAlongY(p.holeType, p.holeD, D, p.holeType === 'pin', x, Z)));
+}
+
+function legoSlope(p) {
+  const W = p.nx * PITCH - 0.2, D = p.ny * PITCH - 0.2, H = p.plates * 3.2, WALL = 1.2;
+  const lip = Math.min(1.6, H - 1);
+  const yb = D / 2 - (PITCH - 0.1);
+  // Side profile in (y, z); extruded along X.
+  const prof = [[-D / 2, 0], [D / 2, 0], [D / 2, H], [yb, H], [-D / 2, lip]];
+  const toX = (cs, w) => {
+    const m = M.Manifold.extrude(cs, w);
+    del(cs);
+    // (x=y, y=z, z=along) -> (along, y, z)
+    return move(rot(m, 90, 0, 90), -w / 2, 0, 0);
+  };
+  const outerCs = () => new M.CrossSection([prof]);
+  const outer = toX(outerCs(), W);
+  const o = outerCs();
+  const inset = o.offset(-WALL, 'Miter');
+  const base = M.CrossSection.square([D - 2 * WALL, 1.3 + 1], false).translate([-(D - 2 * WALL) / 2, -1]);
+  const cavCs = M.CrossSection.union(inset, base);
+  del(o, inset, base);
+  let body = sub(outer, toX(cavCs, W - 2 * WALL));
+
+  const studs = [];
+  const sx = (i) => (i - (p.nx - 1) / 2) * PITCH;
+  for (let i = 0; i < p.nx; i++) studs.push(move(cyl(1.7, p.studD), sx(i), D / 2 - 3.9, H - 0.01));
+  // Underside clutch: tubes (or pins on 1-wide slopes) between rows, trimmed to the outer shape.
+  const under = [];
+  for (let j = 1; j < p.ny; j++) {
+    const y = -D / 2 + j * PITCH - 0.1;
+    if (p.nx > 1) for (let i = 0; i < p.nx - 1; i++) under.push(move(sub(cyl(H - 1, 6.51), cyl(H + 1, 4.8, -1)), sx(i) + PITCH / 2, y, 0));
+    else under.push(move(cyl(H - 1, 3.2), 0, y, 0));
+  }
+  if (under.length) {
+    const u = uni(under);
+    const clip = toX(outerCs(), W);
+    under.length = 0;
+    under.push(u.intersect(clip));
+    del(u, clip);
+  }
+  return uni([body, ...studs, ...under]);
+}
+
+function legoRound(p) {
+  const H = p.plates * 3.2;
+  if (p.size === '1x1') {
+    const body = sub(cyl(H, 7.8), cyl(H - 1 + 1, 4.9, -1));
+    return uni([body, move(cyl(1.7, p.studD), 0, 0, H - 0.01)]);
+  }
+  const Dm = 15.8;
+  let body = sub(cyl(H, Dm), cyl(H - 1 + 1, Dm - 2.4, -1));
+  body = uni([body, cyl(H - 0.5, 6.51)]);
+  const studs = [];
+  for (const x of [-4, 4]) for (const y of [-4, 4]) studs.push(move(cyl(1.7, p.studD), x, y, H - 0.01));
+  body = uni([body, ...studs]);
+  return sub(body, holeCutter('axle', p.holeD, H + 2, false));
+}
+
+function legoLiftarm(p) {
+  const n = p.holes, T = p.thin ? 3.8 : 7.8, L = (n - 1) * PITCH;
+  const c1 = M.CrossSection.circle(3.6), c2 = M.CrossSection.circle(3.6).translate([L, 0]);
+  const cs = M.CrossSection.hull([c1, c2]);
+  del(c1, c2);
+  let body = move(M.Manifold.extrude(cs, T), -L / 2, 0, 0);
+  del(cs);
+  const cuts = [];
+  for (let i = 0; i < n; i++) {
+    const type = p.axleEnds && (i === 0 || i === n - 1) ? 'axle' : p.holeType;
+    cuts.push(move(holeCutter(type, p.holeD, T, type === 'pin' && !p.thin), -L / 2 + i * PITCH, 0, 0));
+  }
+  return sub(body, ...cuts);
+}
+
+function legoAxle(p) {
+  const L = p.length * PITCH - 0.2, s = p.size, arm = 1.8;
+  const a = M.CrossSection.square([s, arm], true), b = M.CrossSection.square([arm, s], true);
+  const cs = M.CrossSection.union(a, b);
+  del(a, b);
+  const m = M.Manifold.extrude(cs, L);
+  del(cs);
+  // Lie it along X, resting on one arm.
+  return move(rot(m, 0, 90, 0), -L / 2, 0, s / 2);
+}
+
+function legoPin(p) {
+  const L = 15.8, half = 7.5;
+  let body = uni([cyl(L, p.pinD), cyl(0.8, 5.6, half)]);
+  if (p.slotted) body = sub(body, box(-0.45, -4, -1, 0.45, 4, 4.5), box(-0.45, -4, L - 4.5, 0.45, 4, L + 1));
   return body;
 }
 
@@ -263,13 +387,21 @@ export function buildSpec(spec) {
       case 'lego_calibration': res = legoCalibration(p); break;
       case 'l_bracket': res = lBracket(p); break;
       case 'tool_holder': res = toolHolder(p, spec.tolerance, spec.tools); break;
+      case 'lego_technic_brick': res = legoTechnic(p); break;
+      case 'lego_slope': res = legoSlope(p); break;
+      case 'lego_round': res = legoRound(p); break;
+      case 'lego_liftarm': res = legoLiftarm(p); break;
+      case 'lego_axle': res = legoAxle(p); break;
+      case 'lego_pin': res = legoPin(p); break;
       default: continue;
     }
     const list = Array.isArray(res) ? res : [{ name: part.id, mf: res }];
+    const qty = part.qty || 1;
     for (const b of list) {
       const name = list.length > 1 ? `${part.id} ${b.name}` : part.id;
-      out.push({ partId: part.id, name, slot: b.slot || part.slot, ...extract(b.mf) });
+      const data = extract(b.mf);
       del(b.mf);
+      for (let k = 0; k < qty; k++) out.push({ partId: part.id, name: qty > 1 ? `${name} #${k + 1}` : name, slot: b.slot || part.slot, ...data });
     }
   }
   return out;

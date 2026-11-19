@@ -45,14 +45,73 @@ export const TYPES = {
     },
   },
   lego_brick: {
-    label: 'Lego-compatible brick',
-    blurb: '8 mm stud pitch, 3.2 mm plates. Tune stud Ø with the calibration print.',
+    label: 'Lego brick, plate or tile',
+    blurb: '8 mm stud pitch, 3.2 mm plates. 1 plate high is a plate; turn studs off for a tile. Tune stud Ø with the clutch test.',
     params: {
       nx: { label: 'Studs X', type: 'int', min: 1, max: 16, default: 4 },
       ny: { label: 'Studs Y', type: 'int', min: 1, max: 16, default: 2 },
       plates: { label: 'Height in plates (3 = brick)', type: 'int', min: 1, max: 12, default: 3 },
       studD: { label: 'Stud Ø', type: 'num', unit: 'mm', min: 4.5, max: 5.1, step: 0.01, default: 4.8 },
       tubeOD: { label: 'Tube outer Ø', type: 'num', unit: 'mm', min: 6.2, max: 6.8, step: 0.01, default: 6.51 },
+      studs: { label: 'Studs on top (off = tile)', type: 'bool', default: true },
+    },
+  },
+  lego_technic_brick: {
+    label: 'Technic brick with holes',
+    blurb: '1×N brick with cross holes. Holes under the studs give N holes (1×2 with 2 holes); between the studs gives N−1.',
+    params: {
+      length: { label: 'Length (studs)', type: 'int', min: 1, max: 16, default: 2 },
+      placement: { label: 'Hole position', type: 'choice', options: ['studs', 'between'], default: 'studs' },
+      holeType: { label: 'Hole type', type: 'choice', options: ['pin', 'axle'], default: 'pin' },
+      holeD: { label: 'Hole Ø', type: 'num', unit: 'mm', min: 4.6, max: 5.4, step: 0.05, default: 4.9 },
+      studD: { label: 'Stud Ø', type: 'num', unit: 'mm', min: 4.5, max: 5.1, step: 0.01, default: 4.8 },
+    },
+  },
+  lego_slope: {
+    label: 'Lego slope',
+    blurb: 'Sloped brick with studs on the back row. 2 rows deep is a 45° slope.',
+    params: {
+      nx: { label: 'Width (studs)', type: 'int', min: 1, max: 8, default: 2 },
+      ny: { label: 'Depth (rows)', type: 'int', min: 2, max: 4, default: 2 },
+      plates: { label: 'Height in plates', type: 'int', min: 2, max: 6, default: 3 },
+      studD: { label: 'Stud Ø', type: 'num', unit: 'mm', min: 4.5, max: 5.1, step: 0.01, default: 4.8 },
+    },
+  },
+  lego_round: {
+    label: 'Lego round brick',
+    blurb: '1×1 or 2×2 round brick. The 2×2 has an axle hole through the middle.',
+    params: {
+      size: { label: 'Size', type: 'choice', options: ['1x1', '2x2'], default: '2x2' },
+      plates: { label: 'Height in plates', type: 'int', min: 1, max: 12, default: 3 },
+      holeD: { label: 'Axle hole size', type: 'num', unit: 'mm', min: 4.6, max: 5.4, step: 0.05, default: 4.9 },
+      studD: { label: 'Stud Ø', type: 'num', unit: 'mm', min: 4.5, max: 5.1, step: 0.01, default: 4.8 },
+    },
+  },
+  lego_liftarm: {
+    label: 'Technic liftarm',
+    blurb: 'Studless beam, printed flat so the holes come out round.',
+    params: {
+      holes: { label: 'Holes', type: 'int', min: 2, max: 15, default: 5 },
+      thin: { label: 'Thin (half thickness)', type: 'bool', default: false },
+      holeType: { label: 'Hole type', type: 'choice', options: ['pin', 'axle'], default: 'pin' },
+      axleEnds: { label: 'Axle holes at the ends', type: 'bool', default: false },
+      holeD: { label: 'Hole Ø', type: 'num', unit: 'mm', min: 4.6, max: 5.4, step: 0.05, default: 4.9 },
+    },
+  },
+  lego_axle: {
+    label: 'Technic axle',
+    blurb: 'Cross axle, printed lying on one arm.',
+    params: {
+      length: { label: 'Length (studs)', type: 'int', min: 2, max: 16, default: 4 },
+      size: { label: 'Cross size', type: 'num', unit: 'mm', min: 4.4, max: 4.9, step: 0.05, default: 4.7 },
+    },
+  },
+  lego_pin: {
+    label: 'Technic pin',
+    blurb: 'Two-stud pin with a centre collar, printed standing. Slots at the ends add friction.',
+    params: {
+      pinD: { label: 'Pin Ø', type: 'num', unit: 'mm', min: 4.5, max: 5.0, step: 0.05, default: 4.8 },
+      slotted: { label: 'Friction slots', type: 'bool', default: true },
     },
   },
   lego_calibration: {
@@ -118,6 +177,28 @@ export const PRESETS = [
     key: 'lego',
     name: 'Brick 2×4',
     parts: [{ id: 'brick', type: 'lego_brick', slot: 2, params: { nx: 4, ny: 2, plates: 3 } }],
+  },
+  {
+    key: 'technic-1x2',
+    name: 'Technic brick 1×2, 2 holes',
+    parts: [{ id: 'technic', type: 'lego_technic_brick', slot: 2, params: { length: 2, placement: 'studs' } }],
+  },
+  {
+    key: 'lego-kit',
+    name: 'Lego part kit',
+    parts: [
+      { id: 'brick2x4', type: 'lego_brick', slot: 2, params: { nx: 4, ny: 2, plates: 3 } },
+      { id: 'brick2x2', type: 'lego_brick', slot: 2, params: { nx: 2, ny: 2, plates: 3 } },
+      { id: 'plate2x4', type: 'lego_brick', slot: 3, params: { nx: 4, ny: 2, plates: 1 } },
+      { id: 'tile2x2', type: 'lego_brick', slot: 1, params: { nx: 2, ny: 2, plates: 1, studs: false } },
+      { id: 'technic1x2', type: 'lego_technic_brick', slot: 3, params: { length: 2, placement: 'studs' } },
+      { id: 'technic1x4', type: 'lego_technic_brick', slot: 3, params: { length: 4, placement: 'between' } },
+      { id: 'slope2x2', type: 'lego_slope', slot: 2, params: { nx: 2, ny: 2 } },
+      { id: 'round2x2', type: 'lego_round', slot: 4, params: { size: '2x2' } },
+      { id: 'liftarm5', type: 'lego_liftarm', slot: 4, params: { holes: 5, axleEnds: true } },
+      { id: 'axle4', type: 'lego_axle', slot: 1, params: { length: 4 } },
+      { id: 'pin', type: 'lego_pin', slot: 1, qty: 4, params: {} },
+    ],
   },
   {
     key: 'lego-cal',

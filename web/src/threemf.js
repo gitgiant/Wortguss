@@ -7,17 +7,32 @@ import { BED } from './catalog.js';
 const esc = (s) => String(s).replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[c]);
 const f = (n) => (Math.round(n * 10000) / 10000).toString();
 
-// Place bodies left to right with a gap, centred on the plate.
-export function layout(bodies, gap = 8) {
-  const widths = bodies.map((b) => b.bbox.max[0] - b.bbox.min[0]);
-  const total = widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, bodies.length - 1);
-  let x = BED.x / 2 - total / 2;
-  return bodies.map((b, i) => {
-    const dx = x - b.bbox.min[0];
-    const cy = (b.bbox.min[1] + b.bbox.max[1]) / 2;
-    x += widths[i] + gap;
-    return [dx, BED.y / 2 - cy, -b.bbox.min[2]];
+// Pack bodies into rows that fit the plate width, centred on the plate.
+export function layout(bodies, gap = 6) {
+  const maxW = BED.x - 10;
+  const rows = [];
+  let row = null;
+  bodies.forEach((b, i) => {
+    const w = b.bbox.max[0] - b.bbox.min[0], d = b.bbox.max[1] - b.bbox.min[1];
+    if (!row || (row.items.length && row.w + gap + w > maxW)) rows.push((row = { items: [], w: 0, d: 0 }));
+    row.w += (row.items.length ? gap : 0) + w;
+    row.d = Math.max(row.d, d);
+    row.items.push({ i, w });
   });
+  const totalD = rows.reduce((s, r) => s + r.d, 0) + gap * Math.max(0, rows.length - 1);
+  const out = [];
+  let top = BED.y / 2 + totalD / 2;
+  for (const r of rows) {
+    const yc = top - r.d / 2;
+    let x = BED.x / 2 - r.w / 2;
+    for (const { i, w } of r.items) {
+      const b = bodies[i];
+      out[i] = [x - b.bbox.min[0], yc - (b.bbox.min[1] + b.bbox.max[1]) / 2, -b.bbox.min[2]];
+      x += w + gap;
+    }
+    top -= r.d + gap;
+  }
+  return out;
 }
 
 export function build3mf(spec, bodies) {
