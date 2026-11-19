@@ -27,11 +27,10 @@ CAD later. Units are millimetres.
 - `tools` is the saved tool library. `tool_holder` refers to tools by name, or
   takes inline `{ "name", "d" }` / `{ "name", "w", "t" }` objects.
 - Every exported 3MF carries its spec at `Metadata/wortguss.spec.json`.
-- 3MFs are written in Bambu Studio's project layout (meshes in `3D/Objects/`,
-  `Metadata/model_settings.config` with each part's AMS slot). The embedded A1
-  `project_settings.config` is switched off for now: Bambu Studio rejected it as an
-  invalid configuration. `web/src/a1-profile.json` and `make-a1-profile.mjs` keep
-  the flattened A1 presets for when that is fixed.
+- 3MFs are plain core-spec files (one object per part, colour per AMS slot via
+  basematerials), like Fusion or PrusaSlicer exports. A Bambu-project-style file
+  was rejected by Bambu Studio; `web/src/a1-profile.json` and
+  `make-a1-profile.mjs` keep the flattened A1 presets in case that is revisited.
 
 - `parts[].qty` (optional, 1–20) prints several copies of a part.
 
