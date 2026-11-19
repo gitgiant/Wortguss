@@ -1,0 +1,130 @@
+{
+  "wortguss": 1,
+  "name": "Vented case",
+  "material": "PLA",
+  "tolerance": 0.2,
+  "colors": [
+    "#f2f2ef",
+    "#d64933",
+    "#2b2d42",
+    "#2a9d8f"
+  ],
+  "tools": {
+    "screwdriver-small": {
+      "d": 6,
+      "note": "Shaft-side grip, measured at widest"
+    },
+    "screwdriver-large": {
+      "d": 9.5
+    },
+    "hex-key-set": {
+      "w": 22,
+      "t": 9
+    },
+    "flush-cutters": {
+      "w": 18,
+      "t": 10
+    },
+    "caliper-jaw": {
+      "w": 16,
+      "t": 4
+    }
+  },
+  "parts": [
+    {
+      "id": "case",
+      "type": "enclosure",
+      "slot": 3,
+      "params": {
+        "w": 70,
+        "d": 50,
+        "h": 25,
+        "wall": 2,
+        "floor": 2,
+        "radius": 4,
+        "lid": true,
+        "lidSlot": 4,
+        "lidThickness": 2,
+        "lipDepth": 3
+      },
+      "extras": [
+        {
+          "op": "cut",
+          "shape": "fill",
+          "face": "lid_top",
+          "u": 0,
+          "v": 0,
+          "kind": "hex",
+          "w": 50,
+          "h": 30,
+          "cell": 6,
+          "wall": 1.4,
+          "depth": 1,
+          "seed": 1,
+          "through": true
+        },
+        {
+          "op": "cut",
+          "shape": "fill",
+          "face": "left",
+          "u": 0,
+          "v": 0,
+          "kind": "voronoi",
+          "w": 30,
+          "h": 14,
+          "cell": 5,
+          "wall": 1.4,
+          "depth": 1,
+          "seed": 4,
+          "through": true
+        },
+        {
+          "op": "cut",
+          "shape": "slot",
+          "face": "front",
+          "u": 0,
+          "v": -5,
+          "w": 9.5,
+          "h": 3.8,
+          "depth": 5,
+          "through": true
+        },
+        {
+          "op": "add",
+          "shape": "standoff",
+          "face": "floor",
+          "u": 0,
+          "v": 0,
+          "od": 5.5,
+          "depth": 5,
+          "size": "M2.5",
+          "pattern": {
+            "type": "grid",
+            "nx": 2,
+            "ny": 2,
+            "dx": 58,
+            "dy": 23
+          }
+        },
+        {
+          "op": "add",
+          "shape": "texture",
+          "face": "right",
+          "u": 0,
+          "v": 0,
+          "kind": "knurl",
+          "w": 40,
+          "h": 16,
+          "amp": 0.5,
+          "scale": 3,
+          "seed": 1
+        }
+      ],
+      "finish": {
+        "type": "chamfer",
+        "r": 0.6,
+        "edges": "bottom"
+      }
+    }
+  ]
+}

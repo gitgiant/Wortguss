@@ -43,6 +43,11 @@ CAD later. Units are millimetres.
   raises it; a raised label with its own `slot` prints in that AMS colour (the 3MF
   colours its triangles; the STLs include a separate `-label-slotN.stl`).
   `mirror: lr|ud|both` adds mirrored copies across the face centre lines.
+- Phase 3 extras: `tube`, `gusset`, `rib`, `snap_clip`; `fill` pattern areas
+  (hex, triangle, diamond, square, brick, voronoi, girih, truchet, penrose) for
+  vents or raised patterns; `texture` relief (noise, bumps, wood, waves, knurl);
+  `gyroid` lattice blocks; `svg` logos (uploaded on the page, stored as compact
+  contours in `logo`, ≤ 50 KB).
 - `parts[].finish: {type: round|chamfer, r, edges: both|top|bottom}` rounds or
   chamfers the outer top/bottom edges.
 - The `custom` part type starts from a block, cylinder or nothing; build it with extras.

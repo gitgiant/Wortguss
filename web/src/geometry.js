@@ -4,6 +4,7 @@
 
 import { SCREWS } from './catalog.js';
 import { textContours } from './text.js';
+import { tiling, fitCell, arcBand, textureFn, heightfieldMesh, decodeLogo } from './patterns.js';
 
 let M; // manifold toplevel
 
@@ -473,6 +474,93 @@ function featureLocal(e, thick, tol) {
       put(prism(cs, ...span));
       break;
     }
+    case 'tube': {
+      const ring = sub(cone(e.od, e.od, ...span), e.id > 0 && e.id < e.od ? cone(e.id, e.id, span[0] - 1, span[1] + 1) : null);
+      put(ring);
+      break;
+    }
+    case 'gusset': {
+      // Right triangle in the (v, n) plane: legs h along +v and depth along +n, w thick along u.
+      const cs = new M.CrossSection([[[0, -0.01], [e.h, -0.01], [0, e.depth]]]);
+      let m = M.Manifold.extrude(cs, e.w);
+      del(cs);
+      // local (x, y, z) = (v, n, u) -> want (u, v, n)
+      m = m.transform([0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, -e.w / 2 * 0, 0, 0, 1]);
+      add.push(move(m, -e.w / 2, 0, 0));
+      break;
+    }
+    case 'rib': add.push(prism(M.CrossSection.square([e.w, e.h], true), -0.01, e.depth)); break;
+    case 'snap_clip': {
+      // Arm along +n, hook on +v side with a lead-in slope at the tip.
+      const t = e.h, L = e.depth;
+      const cs = new M.CrossSection([[[-t / 2, -0.01], [t / 2, -0.01], [t / 2, L - e.lead], [t / 2 + e.hook, L - e.lead], [t / 2, L], [-t / 2, L]]]);
+      let m = M.Manifold.extrude(cs, e.w);
+      del(cs);
+      m = m.transform([0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1]);
+      add.push(move(m, -e.w / 2, 0, 0));
+      break;
+    }
+    case 'fill': {
+      const cell = fitCell(e.w, e.h, e.cell);
+      const { polys, lines, arcs } = tiling(e.kind, e.w, e.h, cell, e.seed);
+      let cs;
+      if (lines) {
+        const bands = arcs.map((a) => arcBand(a, Math.min(e.wall, cell * 0.45)));
+        cs = M.CrossSection.union(bands.map((b) => new M.CrossSection([b])));
+      } else {
+        const holes = [];
+        const ccw = (q) => (q.reduce((a, [x, y], i) => { const [x2, y2] = q[(i + 1) % q.length]; return a + x * y2 - x2 * y; }, 0) < 0 ? q.slice().reverse() : q);
+        for (const poly of polys) {
+          const c = new M.CrossSection([ccw(poly)], 'Positive');
+          const ins = c.offset(-e.wall / 2, 'Miter', 2);
+          for (const q of ins.toPolygons()) holes.push(q);
+          del(c, ins);
+        }
+        cs = new M.CrossSection(holes, 'Positive');
+      }
+      const area = rrect(e.w, e.h, 0.5);
+      const clipped = cs.intersect(area);
+      del(cs, area);
+      put(prism(clipped, ...span));
+      break;
+    }
+    case 'texture': {
+      const f = textureFn(e.kind, e.scale, e.seed);
+      const res = Math.max(0.25, Math.min(1, e.scale / 6, Math.max(e.w, e.h) / 250));
+      const mesh = e.op === 'add'
+        ? heightfieldMesh(e.w, e.h, res, (x, y) => 0.02 + e.amp * f(x, y), () => -0.02)
+        : heightfieldMesh(e.w, e.h, res, () => 0.3, (x, y) => -0.02 - e.amp * f(x, y));
+      put(new M.Manifold(new M.Mesh({ numProp: 3, vertProperties: mesh.positions, triVerts: mesh.indices })));
+      break;
+    }
+    case 'gyroid': {
+      const k = (2 * Math.PI) / e.cell;
+      const tt = 0.55 * e.wall * k; // sheet half-thickness in level-set units (|∇g| ≈ k·1.1)
+      const z0 = e.op === 'add' ? 0 : -e.depth, z1 = e.op === 'add' ? e.depth : 0;
+      const sdf = ([x, y, z]) => {
+        const g = Math.sin(k * x) * Math.cos(k * y) + Math.sin(k * y) * Math.cos(k * z) + Math.sin(k * z) * Math.cos(k * x);
+        const sheet = (tt - Math.abs(g)) / k;
+        const boxd = Math.min(e.w / 2 - Math.abs(x), e.h / 2 - Math.abs(y), z - z0, z1 - z);
+        return Math.min(sheet, boxd);
+      };
+      const vol = e.w * e.h * e.depth;
+      const edge = Math.max(e.cell / 10, Math.cbrt(vol / 300000), 0.25);
+      const g = M.Manifold.levelSet(sdf, { min: [-e.w / 2 - 1, -e.h / 2 - 1, z0 - 1], max: [e.w / 2 + 1, e.h / 2 + 1, z1 + 1] }, edge, 0);
+      put(g);
+      break;
+    }
+    case 'svg': {
+      const logo = decodeLogo(e.logo);
+      if (!logo) break;
+      const sc = e.w / logo.W;
+      const parts = logo.paths.map((p) => new M.CrossSection(p.contours.map((c) => c.map(([x, y]) => [(x - logo.W / 2) * sc, (y - logo.H / 2) * sc])), p.rule));
+      if (!parts.length) break;
+      let cs = parts.length === 1 ? parts[0] : M.CrossSection.union(parts);
+      if (parts.length > 1) del(...parts);
+      if (e.face === 'bottom') { const m = cs.mirror([1, 0]); del(cs); cs = m; }
+      put(prism(cs, ...span));
+      break;
+    }
     case 'magnet': cut.push(prism(circle(e.d + 2 * tol), -e.depth, 0.3)); break;
     case 'standoff': {
       add.push(cone(e.od, e.od, -0.01, e.depth));
@@ -554,7 +642,7 @@ function applyExtras(part, list, tol) {
     const fr = e.face === 'xyz' ? xyzFrame(e) : faceOf(e.face);
     const rot = e.rot || 0;
     // Raised text in another AMS colour stays a separate solid (a label on the part).
-    const asLabel = e.shape === 'text' && e.op === 'add' && e.slot > 0 && e.slot !== part.slot;
+    const asLabel = (e.shape === 'text' || e.shape === 'svg') && e.op === 'add' && e.slot > 0 && e.slot !== part.slot;
     const spots = [];
     for (const [pu, pv] of patternOffsets(e.pattern)) {
       const u = e.u + pu, v = e.v + pv;
@@ -567,7 +655,7 @@ function applyExtras(part, list, tol) {
     for (const [u, v, mu, mv] of spots) {
       const { add, cut } = featureLocal(e, fr.thick, tol);
       // Text stays readable in mirror copies; other shapes are reflected.
-      const flip = (m) => (e.shape !== 'text' && (mu < 0 || mv < 0) ? (() => { const r = m.scale([mu, mv, 1]); del(m); return r; })() : m);
+      const flip = (m) => (e.shape !== 'text' && e.shape !== 'svg' && (mu < 0 || mv < 0) ? (() => { const r = m.scale([mu, mv, 1]); del(m); return r; })() : m);
       const place = (m) => transformTo(rot ? rot_(flip(m), rot * mu * mv) : flip(m), fr, u, v);
       const slot = perBody.get(fr.role) || { add: [], cut: [], labels: [] };
       if (asLabel) slot.labels.push(...add.map((m) => ({ mf: place(m), slot: e.slot })));

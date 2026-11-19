@@ -56,6 +56,8 @@ export function normalizeExtra(e) {
   if (+e.rot) out.rot = range(e.rot, -360, 360, 0);
   for (const [k, fd] of Object.entries(def.fields)) {
     // Text: printable characters only, up to 6 lines of 40.
+    if (fd.type === 'choice') { out[k] = fd.options.includes(e[k]) ? e[k] : fd.default; continue; }
+    if (fd.type === 'svg') { out[k] = typeof e[k] === 'string' && e[k].length <= 60000 && /^[NE0-9:;., \n-]*$/.test(e[k]) ? e[k] : ''; continue; }
     out[k] = fd.type === 'text'
       ? String(e[k] ?? fd.default).replace(/\r/g, '').replace(/[^\x20-\x7E\u00A0-\u024F\n]/g, '').split('\n').slice(0, 6).map((l) => l.slice(0, 40)).join('\n') || fd.default
       : numIn(fd, e[k]);

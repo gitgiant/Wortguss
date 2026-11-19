@@ -229,6 +229,17 @@ export const PRESETS = [
     ] }],
   },
   {
+    key: 'vented',
+    name: 'Vented case',
+    parts: [{ id: 'case', type: 'enclosure', slot: 3, params: { w: 70, d: 50, h: 25, radius: 4, lidSlot: 4 }, finish: { type: 'chamfer', r: 0.6, edges: 'bottom' }, extras: [
+      { op: 'cut', shape: 'fill', face: 'lid_top', kind: 'hex', w: 50, h: 30, cell: 6, wall: 1.4, through: true },
+      { op: 'cut', shape: 'fill', face: 'left', kind: 'voronoi', w: 30, h: 14, cell: 5, wall: 1.4, through: true, seed: 4 },
+      { op: 'cut', shape: 'slot', face: 'front', w: 9.5, h: 3.8, v: -5, through: true },
+      { op: 'add', shape: 'standoff', face: 'floor', size: 'M2.5', depth: 5, pattern: { type: 'grid', nx: 2, ny: 2, dx: 58, dy: 23 } },
+      { op: 'add', shape: 'texture', face: 'right', kind: 'knurl', w: 40, h: 16, amp: 0.5, scale: 3 },
+    ] }],
+  },
+  {
     key: 'tag',
     name: 'Name tag',
     parts: [{ id: 'tag', type: 'custom', slot: 1, params: { base: 'box', w: 70, d: 25, h: 4, radius: 4 }, finish: { type: 'round', r: 1.2, edges: 'top' }, extras: [
@@ -285,6 +296,20 @@ export const EXTRA_SHAPES = {
   nut_trap: { label: 'Nut trap', op: 'cut', fields: { depth: N('Screw hole depth', 0.5, 250, 5) } },
   keyhole: { label: 'Keyhole (hang on a screw)', op: 'cut', fields: { len: N('Slot length', 2, 50, 8), depth: N('Depth', 0.5, 250, 3) } },
   text: { label: 'Text', fields: { text: { label: 'Text', type: 'text', default: 'Label' }, size: N('Letter height', 1, 100, 6), depth: N('Depth', 0.2, 20, 0.6), slot: { label: 'AMS slot for raised text (0 = same as part)', type: 'int', min: 0, max: 4, default: 0 } } },
+  tube: { label: 'Tube', fields: { od: N('Outer Ø', 1, 250, 10), id: N('Inner Ø', 0, 245, 6), depth: N('Length', 0.2, 250, 10) } },
+  gusset: { label: 'Gusset (triangle brace)', op: 'add', fields: { w: N('Thickness', 0.4, 50, 2), h: N('Leg along face (up / back)', 1, 250, 10), depth: N('Leg out of face', 1, 250, 10) } },
+  rib: { label: 'Rib', op: 'add', fields: { w: N('Length', 1, 250, 30), h: N('Thickness', 0.4, 20, 1.6), depth: N('Height', 0.4, 100, 4) } },
+  snap_clip: { label: 'Snap-fit clip', op: 'add', fields: { w: N('Width', 2, 50, 6), h: N('Arm thickness', 0.8, 5, 1.4), depth: N('Arm length', 4, 50, 10), hook: N('Hook overhang', 0.3, 3, 1), lead: N('Hook length', 0.8, 10, 2) } },
+  fill: { label: 'Pattern area (vents, tiling)', fields: {
+    kind: { label: 'Pattern', type: 'choice', options: ['hex', 'triangle', 'diamond', 'square', 'brick', 'voronoi', 'girih', 'truchet', 'penrose'], default: 'hex' },
+    w: N('Area width', 2, 250, 40), h: N('Area height', 2, 250, 20), cell: N('Cell size', 1, 60, 6), wall: N('Wall between cells', 0.4, 20, 1.2),
+    depth: N('Depth', 0.2, 50, 1), seed: { label: 'Random seed', type: 'int', min: 0, max: 9999, default: 1 } } },
+  texture: { label: 'Surface texture', fields: {
+    kind: { label: 'Texture', type: 'choice', options: ['noise', 'bumps', 'wood', 'waves', 'knurl'], default: 'noise' },
+    w: N('Area width', 2, 250, 40), h: N('Area height', 2, 250, 20), amp: N('Relief', 0.1, 5, 0.6), scale: N('Feature size', 0.5, 50, 4),
+    seed: { label: 'Random seed', type: 'int', min: 0, max: 9999, default: 1 } } },
+  gyroid: { label: 'Gyroid lattice block', fields: { w: N('Width', 2, 200, 30), h: N('Height (along face)', 2, 200, 30), depth: N('Depth out of face', 1, 100, 10), cell: N('Cell size', 2, 40, 8), wall: N('Wall thickness', 0.4, 5, 0.9) } },
+  svg: { label: 'SVG logo', fields: { logo: { label: 'Logo', type: 'svg', default: '' }, w: N('Width', 1, 250, 30), depth: N('Depth', 0.2, 50, 0.8), slot: { label: 'AMS slot for raised logo (0 = same as part)', type: 'int', min: 0, max: 4, default: 0 } } },
   magnet: { label: 'Magnet pocket', op: 'cut', fields: { d: N('Magnet Ø', 1, 50, 6), depth: N('Magnet height', 0.5, 50, 2) } },
 };
 export const SCREW_SHAPES = new Set(['standoff', 'insert_post', 'screw_hole', 'countersunk', 'nut_trap', 'keyhole']);
@@ -312,6 +337,11 @@ export const EXTRAS_HELP = `Every part may have "extras": a list of features add
 - size: ${Object.keys(SCREWS).join('|')} for ${[...SCREW_SHAPES].join(', ')} (standoff takes a self-tapping screw, insert_post a heat-set insert).
 - pattern: {type: none|row|grid|circle, n, dx (row); nx, ny, dx, dy (grid); n, radius (circle)}, centred on u, v. e.g. 4 PCB standoffs on a 58x49 grid: {op:'add', shape:'standoff', face:'floor', size:'M2.5', pattern:{type:'grid', nx:2, ny:2, dx:58, dy:49}}.
 - text: {op, shape:'text', text, size (letter height mm), depth, slot}. op 'cut' engraves; op 'add' raises it. A raised label with slot 1-4 different from the part's slot prints in that AMS colour. Use \n for line breaks; Latin letters, digits and punctuation.
+- tube {od, id, depth}; gusset {w thickness, h leg along the face (up on walls, towards the back on top/floor), depth leg out of the face} braces an inside corner; rib {w length, h thickness, depth height}; snap_clip {w, h arm thickness, depth arm length, hook, lead} is a cantilever with a hook pointing up/back.
+- fill {kind: hex|triangle|diamond|square|brick|voronoi|girih|truchet|penrose, w, h area, cell, wall, depth, seed}: op cut makes vents/perforation (through:true for open vents), op add raises the pattern. truchet draws curved lines of width wall.
+- texture {kind: noise|bumps|wood|waves|knurl, w, h, amp relief, scale feature size, seed}: op add raises a relief on the face, op cut carves it in. Good for grips.
+- gyroid {w, h, depth, cell, wall}: a lightweight lattice block growing out of the face (op add), or carved into it (op cut).
+- svg logos can only be uploaded by the person on the page; never create or change the logo field.
 - mirror: none|lr|ud|both also places a mirrored copy across the face centre line(s).
 - Each part may also have finish: {type: sharp|round|chamfer, r (mm), edges: both|top|bottom}, which rounds or chamfers the outer top and/or bottom edges.
 - USB-C port: {op:'cut', shape:'slot', face:'front', w:9.5, h:3.8, through:true, v: <height>}.`;

@@ -4,6 +4,7 @@ import Module from 'manifold-3d';
 import wasmBinary from 'manifold-3d/manifold.wasm';
 import { TYPES, PRESETS, MATERIALS, BED, FACES, EXTRA_SHAPES, SCREWS, SCREW_SHAPES, PATTERNS, EXTRAS_HELP, MIRRORS, FINISH } from './catalog.js';
 import { loadFont } from './text.js';
+import { svgToLogo } from './svg.js';
 import fontBytes from '@fontsource/inter/files/inter-latin-700-normal.woff';
 import { normalizeSpec, normalizePart, normalizeExtra, specFromPreset, slugify } from './spec.js';
 import { initGeometry, buildSpec, estimate, resolveTools } from './geometry.js';
@@ -374,6 +375,15 @@ const QUICK = [
   ['Nut trap', { op: 'cut', shape: 'nut_trap', face: 'bottom', size: 'M3', through: true }],
   ['Keyhole', { op: 'cut', shape: 'keyhole', face: 'back', size: 'M4', through: true }],
   ['Magnet', { op: 'cut', shape: 'magnet', face: 'bottom', d: 6, depth: 2 }],
+  ['Hex vents', { op: 'cut', shape: 'fill', face: 'top', kind: 'hex', w: 30, h: 20, cell: 6, wall: 1.2, through: true }],
+  ['Pattern area', { op: 'add', shape: 'fill', face: 'top', kind: 'voronoi', w: 30, h: 20, cell: 6, wall: 1.2, depth: 0.8 }],
+  ['Grip texture', { op: 'add', shape: 'texture', face: 'top', kind: 'knurl', w: 30, h: 20, amp: 0.6, scale: 3 }],
+  ['Gyroid block', { op: 'add', shape: 'gyroid', face: 'top', w: 30, h: 30, depth: 10, cell: 8, wall: 0.9 }],
+  ['Gusset', { op: 'add', shape: 'gusset', face: 'floor', w: 2, h: 10, depth: 10 }],
+  ['Rib', { op: 'add', shape: 'rib', face: 'floor', w: 30, h: 1.6, depth: 4 }],
+  ['Tube', { op: 'add', shape: 'tube', face: 'top', od: 10, id: 6, depth: 10 }],
+  ['Snap clip', { op: 'add', shape: 'snap_clip', face: 'top' }],
+  ['Logo (SVG)', { op: 'cut', shape: 'svg', face: 'top', w: 30, depth: 0.8 }],
   ['Engraved text', { op: 'cut', shape: 'text', face: 'top', text: 'Label', size: 6, depth: 0.6 }],
   ['Raised text', { op: 'add', shape: 'text', face: 'top', text: 'Label', size: 6, depth: 0.6, slot: 2 }],
   ['Block', { op: 'add', shape: 'box', face: 'top', w: 10, h: 10, depth: 5 }],
@@ -404,6 +414,19 @@ function extrasEditor(part, pi, onChange) {
           sel(id('size'), Object.fromEntries(Object.keys(SCREWS).map((k) => [k, k])), e.size, (v) => setAt(i, { size: v }), 'Screw size')) : null,
         Object.entries(def.fields).map(([k, fd]) => {
           if (k === 'depth' && e.through) return null;
+          if (fd.type === 'choice') return h('div', { class: 'field' }, h('label', { for: id(k), text: fd.label }),
+            sel(id(k), Object.fromEntries(fd.options.map((o) => [o, o])), e[k], (v) => setAt(i, { [k]: v }), fd.label));
+          if (fd.type === 'svg') {
+            const pick = h('input', { type: 'file', accept: '.svg,image/svg+xml', id: id(k), hidden: true, onchange: async (ev) => {
+              const f = ev.target.files?.[0];
+              if (!f) return;
+              try { setAt(i, { logo: svgToLogo(await f.text()) }); reply(`Loaded ${f.name}.`); }
+              catch (err) { reply(err.message || 'Could not read that SVG.', true); }
+            } });
+            return h('div', { class: 'field', style: 'grid-column: 1 / -1' }, h('label', { text: 'Logo file' }),
+              h('div', { class: 'askrow' }, pick, h('button', { class: 'btn', type: 'button', text: e.logo ? 'Replace SVG…' : 'Upload SVG…', onclick: () => pick.click() }),
+                h('span', { class: 'note-line', text: e.logo ? `${(e.logo.length / 1024).toFixed(1)} KB stored with the part` : 'Filled shapes are used; strokes are ignored.' })));
+          }
           if (fd.type === 'text') return h('div', { class: 'field', style: 'grid-column: 1 / -1' }, h('label', { for: id(k), text: 'Text (new line = second line)' }),
             h('textarea', { id: id(k), rows: 2, class: 'textin', onchange: (ev) => setAt(i, { [k]: ev.target.value }) }, e[k]));
           if (k === 'slot') return e.op === 'add' ? h('div', { class: 'field' }, h('label', { text: 'Colour (AMS slot)' }),
