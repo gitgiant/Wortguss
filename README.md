@@ -19,7 +19,8 @@ Describe a part, tweak it, and save a 3MF with colours mapped to AMS slots.
 - saved tool library, version history (kept per person in the artifact's
   database, so the same part opens on phone and desktop)
 - rough filament and print-time estimates, bed-fit check
-- Save 3MF (falls back to STL if the viewer refuses .3mf), save or copy the spec
+- Save 3MF: the claude.ai viewer refuses .3mf downloads, so the page falls back to a
+  .zip holding the .3mf and the spec. Save or copy the spec on its own as well
 
 ```sh
 cd web

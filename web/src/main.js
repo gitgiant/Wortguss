@@ -6,6 +6,7 @@ import { TYPES, PRESETS, MATERIALS, BED } from './catalog.js';
 import { normalizeSpec, normalizePart, specFromPreset, slugify } from './spec.js';
 import { initGeometry, buildSpec, estimate, resolveTools } from './geometry.js';
 import { build3mf, layout } from './threemf.js';
+import { zipSync, strToU8 } from 'fflate';
 
 const $ = (id) => document.getElementById(id);
 const h = (tag, attrs = {}, ...kids) => {
@@ -473,25 +474,6 @@ function initDictation(d) {
 }
 
 // ---------------------------------------------------------------- downloads
-function stl(bodiesIn) {
-  const offs = layout(bodiesIn);
-  const tris = bodiesIn.reduce((s, b) => s + b.mesh.indices.length / 3, 0);
-  const buf = new DataView(new ArrayBuffer(84 + tris * 50));
-  buf.setUint32(80, tris, true);
-  let o = 84;
-  bodiesIn.forEach((b, bi) => {
-    const P = b.mesh.positions, I = b.mesh.indices, [dx, dy, dz] = offs[bi];
-    for (let k = 0; k < I.length; k++) {
-      if (k % 3 === 0) o += 12;
-      const v = I[k] * 3;
-      buf.setFloat32(o, P[v] + dx, true); buf.setFloat32(o + 4, P[v + 1] + dy, true); buf.setFloat32(o + 8, P[v + 2] + dz, true);
-      o += 12;
-      if (k % 3 === 2) o += 2;
-    }
-  });
-  return buf.buffer;
-}
-
 async function save(kind) {
   const note = $('exportNote');
   if (!caps.downloads) { note.textContent = 'Saving files is not available in this view. Open the page on claude.ai to download.'; return; }
@@ -499,11 +481,14 @@ async function save(kind) {
   try {
     if (kind === 'spec') await caps.downloads.save({ filename: `${base}.json`, data: JSON.stringify(spec, null, 2) });
     else {
-      try { await caps.downloads.save({ filename: `${base}.3mf`, data: build3mf(spec, bodies) }); }
+      const file = build3mf(spec, bodies);
+      try { await caps.downloads.save({ filename: `${base}.3mf`, data: file }); }
       catch (e) {
         if (e?.code !== 'rejected_extension') throw e;
-        await caps.downloads.save({ filename: `${base}.stl`, data: stl(bodies) });
-        note.textContent = '3MF files cannot be saved from here, so this saved an STL (one colour). Set colours in Bambu Studio.';
+        // The viewer only allows some file types; .zip is one. Wrap the 3MF (and spec) in a zip.
+        const zip = zipSync({ [`${base}.3mf`]: file, [`${base}.json`]: strToU8(JSON.stringify(spec, null, 2)) }, { level: 0 });
+        await caps.downloads.save({ filename: `${base}.zip`, data: zip });
+        note.textContent = `Saved ${base}.zip. Open it (on iPhone, tap it in Files) to get ${base}.3mf, then open that in Bambu Studio or upload it to MakerWorld.`;
         return;
       }
     }
